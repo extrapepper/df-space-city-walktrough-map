@@ -81,7 +81,10 @@ $('mode2').onclick=()=>setFlat(true);$('mode3').onclick=()=>setFlat(false);
 $('plus').onclick=()=>mouseZoom(.78);$('minus').onclick=()=>mouseZoom(1.28);$('reset').onclick=reset;
 for(const id of ['orbit','walk','fly'])$(id).onclick=()=>changeView(id);
 $('enter-here').onclick=()=>changeView('walk',true);
-$('labels-on').onchange=()=>{dirty=true;drawFlat()};
+$('labels-on').onchange=()=>{
+  $('markers').hidden=!$('labels-on').checked;
+  dirty=true;drawFlat();
+};
 $('contours').onchange=()=>{if(material)material.uniforms.contours.value=Number($('contours').checked);dirty=true;drawFlat()};
 const resize=new ResizeObserver(()=>{resize3D();resizeFlat();drawFlat()});resize.observe(stage);
 function gesture(){
@@ -122,7 +125,7 @@ for(const b of document.querySelectorAll('[data-key]')){
   b.onpointerup=b.onpointercancel=b.onlostpointercapture=()=>keys.delete(b.dataset.key);
 }
 addEventListener('keydown',e=>{
-  if($('dialog').open||e.ctrlKey&&e.code!=='ControlLeft'||e.metaKey||e.altKey)return;
+  if($('dialog').open||$('room-dialog').open||e.ctrlKey&&e.code!=='ControlLeft'||e.metaKey||e.altKey)return;
   if(e.target.tagName==='INPUT'){if(e.key==='Escape')e.target.blur();return}
   if(e.code==='Slash'){e.preventDefault();if(innerWidth<=700)$('sidebar').classList.add('open');$('search').focus();return}
   if(e.code==='KeyR'){reset();return}
@@ -152,9 +155,9 @@ start();
 
 function drawLocator(x,z,yaw){
   const canvas=$('locator').querySelector('canvas'),c=canvas.getContext('2d');
-  const w=canvas.width,h=canvas.height, px=2048/1308.85742;
+  const w=canvas.width,h=canvas.height, px=atlas.naturalWidth/1308.85742;
   c.fillStyle='#18201a';c.fillRect(0,0,w,h);
-  c.filter='brightness(1.9)';c.drawImage(atlas,1024+(x-6.87)*px-w/2,1024+(z-63.8025)*px-h/2,w,h,0,0,w,h);c.filter='none';
+  c.filter='brightness(1.9)';c.drawImage(atlas,atlas.naturalWidth/2+(x-6.87)*px-w*px*.32,atlas.naturalHeight/2+(z-63.8025)*px-h*px*.32,w*px*.64,h*px*.64,0,0,w,h);c.filter='none';
   c.save();c.translate(w/2,h/2);c.rotate(-yaw);
   c.fillStyle='#cff581';c.strokeStyle='#172015';c.lineWidth=2;c.beginPath();c.moveTo(0,-9);c.lineTo(6,6);c.lineTo(0,3);c.lineTo(-6,6);c.closePath();c.fill();c.stroke();c.restore();
   c.font='bold 12px monospace';c.fillStyle='#e3f0d7';c.fillText('N',8,16);

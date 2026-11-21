@@ -22,7 +22,7 @@ const important=new Set(['宿舍区','中控区','工业区','罐装区','蓝室
 function note(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,2700)}
 function setDialog(title,html){$('dialog').querySelector('h2').textContent=title;$('dialog-body').innerHTML=html;$('dialog').showModal()}
 $('guide').onclick=()=>setDialog('操作指南','<dl><dt>环绕沙盘</dt><dd>拖动旋转，右键拖动平移，滚轮缩放。</dd><dt>平面地图</dt><dd>拖动平移，滚轮或双指缩放。</dd><dt>步行与飞行</dt><dd>W A S D 或方向键移动，拖动环顾，Shift 加速。飞行时 E / Q 升降。</dd><dt>触屏漫游</dt><dd>用方向按钮移动，在地图上拖动转向。</dd><dt>返回全图</dt><dd>按 R 或使用右侧复位按钮。</dd></dl>');
-$('source').onclick=()=>setDialog('地图资料','<p>建筑和地形来自公开的航天基地物理场景，坐标从厘米换算为米。远景采用减面网格，进入区域后加载原精度几何。</p><p>13 个地标和俯视影像来自腾讯地图工具；地标平面位置通过建筑轮廓对齐。室内材质采用识图配色，楼层、动态设施和当前赛季差异尚未逐项核验。</p><p><a href="https://df.qq.com/cp/a20240729directory/?map=htjd" target="_blank" rel="noreferrer">腾讯官方地图工具</a> · <a href="https://github.com/QH190311/delta-force-3d-map/tree/fc335ace5e225c8dcae107b8e68cdee3aa61e572" target="_blank" rel="noreferrer">场景数据</a> · <a href="https://www.taptap.cn/moment/560580545478659238" target="_blank" rel="noreferrer">封面出处</a></p>');
+$('source').onclick=()=>setDialog('地图资料','<p>建筑和地形来自公开的航天基地物理场景，坐标从厘米换算为米。远景采用减面网格，进入区域后加载原精度几何。</p><p>13 个地标和俯视影像来自腾讯地图工具。地标平面位置通过建筑轮廓对齐。发射区、中控楼、工业区和水平试车场的部分外表面采用校准后的官方实景照片。五栋核心区建筑可以对照 2025 年的室内全景。官方在蝶变赛季开放了码头和部分水域，并调整了总裁室。这些版本差异尚未逐项核验。</p><p><a href="https://df.qq.com/cp/a20240729directory/?map=htjd" target="_blank" rel="noreferrer">腾讯官方地图工具</a> · <a href="https://github.com/QH190311/delta-force-3d-map/tree/fc335ace5e225c8dcae107b8e68cdee3aa61e572" target="_blank" rel="noreferrer">场景数据</a> · <a href="https://www.taptap.cn/moment/560580545478659238" target="_blank" rel="noreferrer">实景照片</a> · <a href="https://www.playdeltaforce.com/season08/en/" target="_blank" rel="noreferrer">航天基地 2.0 更新</a></p>');
 $('close-dialog').onclick=()=>$('dialog').close();
 $('dialog').addEventListener('click',e=>{if(e.target===$('dialog'))$('dialog').close()});
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch{note('当前浏览器不支持全屏')}};
@@ -51,10 +51,23 @@ function filterPlaces(){
 }
 $('search').oninput=filterPlaces;
 const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay'};
-$('reference-photo').onclick=()=>{if(chosen&&photos[chosen.name])setDialog(chosen.name+' · 游戏画面','<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+photos[chosen.name]+'.webp"><p>画面来自《三角洲行动》官方航天基地介绍。</p>')};
+$('reference-photo').onclick=()=>{
+  const key=photos[chosen?.name];
+  if(!key)return;
+  const pose=surveyViews.get(key);
+  const filename=key==='launch'&&pose?'overview-photo':key;
+  setDialog(chosen.name+' · 游戏画面','<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+filename+'.webp"><p>画面来自《三角洲行动》官方航天基地介绍。</p>');
+  if(!pose)return;
+  const button=document.createElement('button');
+  button.className='visit-photo';button.textContent='从这个视角自由飞行';
+  button.onclick=()=>{$('dialog').close();visitSurvey(pose)};
+  $('dialog-body').append(button);
+};
 function selectPlace(item) {
   if(!ready)return;
-  cancelArrival();chosen=item;$('reference-photo').hidden=!photos[item.name];
+  cancelArrival();chosen=item;
+  $('show-room-views').hidden=!['离心机室','浮力室','蓝室','黑室','总裁室'].includes(item.name);
+  $('reference-photo').hidden=!photos[item.name];
   $('landing').replaceChildren(...item.landings.map((spot,index)=>new Option('高度 '+spot.y.toFixed(1)+' m',String(index))));
   $('landing-label').hidden=!glReady||!item.landings.length;
   $('sidebar').classList.remove('open');
@@ -64,3 +77,44 @@ function selectPlace(item) {
 }
 function clearPlace(){cancelArrival();chosen=null;dirty=true;$('selection').hidden=true;points.forEach(p=>p.pin.classList.remove('active'));filterPlaces();syncMode();drawFlat()}
 $('deselect').onclick=clearPlace;
+
+let roomViewIndex;
+let roomOpenRequest=0;
+$('show-room-views').onclick=async()=>{
+  const place=chosen;
+  if(!place)return;
+  const request=++roomOpenRequest;
+  $('room-title').textContent=place.name+' · 室内全景';
+  $('room-stop').replaceChildren();
+  $('room-link').hidden=true;
+  $('room-screen').textContent='正在读取取景点';
+  $('room-dialog').showModal();
+  try{
+    roomViewIndex??=await jsonFile('room-views.json');
+    if(request!==roomOpenRequest||!$('room-dialog').open)return;
+    const stops=roomViewIndex[place.name];
+    const preferred=stops.find(s=>s.name===place.name+'门口')||stops.find(s=>s.name.includes('门口大厅'))||stops[0];
+    $('room-stop').replaceChildren(...stops.map(s=>new Option(s.name,s.id,false,s===preferred)));
+    showRoomView();
+  }catch{
+    if(request===roomOpenRequest)$('room-screen').textContent='取景点读取失败，请关闭后重试。';
+  }
+};
+function showRoomView(){
+  const name=$('room-stop').selectedOptions[0]?.textContent;
+  if(!name)return;
+  const url=new URL('https://zzzmap.com/');
+  url.searchParams.set('map_type','htjd');url.searchParams.set('sid',$('room-stop').value);
+  $('room-link').href=url.href;$('room-link').hidden=false;
+  const frame=document.createElement('iframe');
+  frame.title=$('room-title').textContent+' · '+name;
+  frame.sandbox='allow-scripts allow-same-origin allow-presentation allow-popups';
+  frame.referrerPolicy='no-referrer';
+  frame.allow='fullscreen';frame.src=url.href;
+  $('room-screen').replaceChildren(frame);
+}
+$('room-stop').onchange=showRoomView;
+$('close-rooms').onclick=()=>$('room-dialog').close();
+$('room-dialog').addEventListener('close',()=>{
+  roomOpenRequest++;$('room-screen').replaceChildren();keys.clear();dirty=true;
+});

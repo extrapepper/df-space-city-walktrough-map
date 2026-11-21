@@ -20,6 +20,14 @@ void main(){
 const fragmentShader=`
 uniform sampler2D chart;
 uniform sampler2D elevation;
+uniform sampler2D surveyPhotos;
+uniform sampler2D surveyDepth;
+uniform vec3 surveyEye[SURVEY_COUNT];
+uniform mat3 surveyAxes[SURVEY_COUNT];
+uniform vec2 surveyFocal[SURVEY_COUNT];
+uniform vec4 surveyBounds[SURVEY_COUNT];
+uniform vec4 surveyRect[SURVEY_COUNT];
+uniform float enableSurvey;
 uniform float contours;
 uniform vec3 colors[8];
 varying vec3 world;
@@ -27,6 +35,24 @@ varying float category;
 float roof(vec2 p){
  vec4 packedHeight=texture2D(elevation,clamp((p+512.5)/1024.,0.,1.));
  return (dot(packedHeight.rg,vec2(255.,65280.))-32768.)*.01;
+}
+vec3 registeredSurface(vec3 shaded, vec3 normal) {
+ if(enableSurvey<.5)return shaded;
+ for(int i=0;i<SURVEY_COUNT;i++){
+   vec4 box=surveyBounds[i];
+   if(world.x<box.x || world.x>box.y || world.z<box.z || world.z>box.w)continue;
+   vec3 local=surveyAxes[i]*(world-surveyEye[i]);
+   if(local.z<=0.)continue;
+   vec2 pixel=local.xy/local.z*surveyFocal[i]+.5;
+   if(any(lessThan(pixel,vec2(0.)))||any(greaterThan(pixel,vec2(1.))))continue;
+   vec2 uv=surveyRect[i].xy+pixel*surveyRect[i].zw;
+   vec3 sampleDepth=texture2D(surveyDepth,uv).rgb;
+   float metres=dot(sampleDepth.rg,vec2(2.55,652.8));
+   float visibility=sampleDepth.b*(1.-smoothstep(.10,.55,abs(local.z-metres)));
+   float angle=abs(dot(normal,normalize(surveyEye[i]-world)));
+   shaded=mix(shaded,texture2D(surveyPhotos,uv).rgb,visibility*smoothstep(.12,.38,angle));
+ }
+ return shaded;
 }
 void main(){
  vec3 n=normalize(cross(dFdx(world),dFdy(world)));
@@ -60,6 +86,7 @@ void main(){
  }
  float noise=fract(sin(dot(floor(world*19.),vec3(.19,3.19,7.41)))*471.37);
  base+=.016*(noise-.5);
+ base=registeredSurface(base,n);
  float fall=smoothstep(360.,650.,length((world.xz-vec2(0.,22.))*vec2(1.18,.9)));
  gl_FragColor=vec4(mix(base,vec3(.115,.153,.135),fall*.89),1.);
 }`;
@@ -67,7 +94,8 @@ async function inflated(file) {
   const reply=await fetch('data/'+file);
   if(!reply.ok) throw Error('地图文件读取失败 '+file);
   const bytes=await reply.arrayBuffer();
-  if(new Uint8Array(bytes)[0]!==31)return bytes; // A host may have already applied transport decompression.
+  const tag=new Uint8Array(bytes,0,Math.min(3,bytes.byteLength));
+  if(tag[0]!==0x1f || tag[1]!==0x8b || tag[2]!==8)return bytes;
   const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Response(stream).arrayBuffer();
 }
@@ -94,13 +122,22 @@ async function initialize3D(){
   gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
   target=new THREE.Vector3(0,-25,24);
-  const [photo,field,manifest,overview]=await Promise.all([new THREE.TextureLoader().loadAsync('data/satellite.webp'),inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz')]);
+  const [field,manifest,overview]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz')]);
+  const photo=new THREE.Texture(atlas);
   photo.flipY=false;photo.needsUpdate=true;
   heights=new Int16Array(field);
   const rgba=new Uint8Array(1024*1024*4);
   heights.forEach((h,i)=>{const v=h+32768;rgba[4*i]=v&255;rgba[4*i+1]=v>>8;rgba[4*i+3]=255});
   const texture=new THREE.DataTexture(rgba,1024,1024);texture.needsUpdate=true;
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
+  material.defines={SURVEY_COUNT:1};
+  Object.assign(material.uniforms,{
+    surveyPhotos:{value:null},surveyDepth:{value:null},
+    surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
+    surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
+    surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
+  });
+  loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     if(cell.overview){const result=readMesh(view,p);cell.low=result.mesh;p=result.offset;scene.add(cell.low)}
@@ -122,6 +159,42 @@ async function initialize3D(){
   water.rotation.x=-Math.PI/2;water.position.set(0,-41.5,55);scene.add(water);
   grid=new THREE.GridHelper(3200,128,0x48584c,0x374238);grid.position.y=-95;scene.add(grid);
   glReady=hasGL=true;resize3D();home3D();orbitCamera();
+}
+const surveyViews=new Map();
+async function loadSurveyTextures(){
+  const loader=new THREE.TextureLoader();
+  const [poses,color,depth]=await Promise.all([
+    jsonFile('survey-cameras.json'),loader.loadAsync('data/survey-photos.webp'),
+    loader.loadAsync('data/survey-depth.png')
+  ]);
+  for(const texture of [color,depth]){
+    texture.flipY=false;texture.needsUpdate=true;
+  }
+  depth.generateMipmaps=false;
+  depth.magFilter=depth.minFilter=THREE.NearestFilter;
+  const u=material.uniforms;
+  u.surveyPhotos.value=color;u.surveyDepth.value=depth;
+  u.surveyAxes.value=poses.map(p=>new THREE.Matrix3().set(...p.rotation.flat()));
+  u.surveyEye.value=poses.map(p=>new THREE.Vector3(...p.eye));
+  u.surveyFocal.value=poses.map(p=>new THREE.Vector2(p.focal/p.width,p.focal/p.height));
+  u.surveyBounds.value=poses.map(p=>new THREE.Vector4(...p.bounds));
+  u.surveyRect.value=poses.map(p=>new THREE.Vector4(...p.rect));
+  for(const pose of poses)surveyViews.set(pose.name,pose);
+  material.defines.SURVEY_COUNT=poses.length;
+  u.enableSurvey.value=1;material.needsUpdate=true;dirty=true;
+}
+function visitSurvey(pose){
+  changeView('fly');
+  camera.position.fromArray(pose.eye);
+  const [right,downward,forward]=pose.rotation;
+  const orientation=new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(...right),new THREE.Vector3(...downward).negate(),new THREE.Vector3(...forward).negate()
+  );
+  camera.quaternion.setFromRotationMatrix(orientation);
+  flyPitch=camera.rotation.x;flyYaw=camera.rotation.y;
+  const fitHeight=Math.max(pose.height,pose.width/camera.aspect);
+  camera.fov=2*Math.atan(fitHeight/(2*pose.focal))/DEG;
+  camera.updateProjectionMatrix();dirty=true;detailClock=0;
 }
 function resize3D(){
   if(!gl||!camera)return;
@@ -260,7 +333,7 @@ function walkStep(dx,dz,dt){
   if(eye.y< -100){const p=approach(chosen||{x:8,z:-142});dropAt(p.x,p.z)}
 }
 function advance(dt){
-  if(!awaitingLanding&&!$('dialog').open&&!isFlat&&view!=='orbit'){
+  if(!awaitingLanding&&!$('dialog').open&&!$('room-dialog').open&&!isFlat&&view!=='orbit'){
     const f=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
     const r=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
     const v=Number(keys.has('KeyE')||keys.has('Space'))-Number(keys.has('KeyQ')||keys.has('ControlLeft'));
