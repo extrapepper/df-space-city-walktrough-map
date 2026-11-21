@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const crypto = require('node:crypto');
+const { identifySurfaces, surfaceRuns } = require('./appearance.cjs');
 const THREE = require('../dist/vendor/three.min.js');
 const simplify = require(process.argv[3] || 'meshoptimizer/meshopt_simplifier.js');
 const data = fs.readFileSync(process.argv[2]);
@@ -70,14 +71,14 @@ function placeGeometry() {
     const cx=(max[0]+min[0])/2, cz=(max[2]+min[2])/2;
     const key=[Math.floor(cx/70),Math.floor(cz/70),isTerrain?1:0].join('_');
     const palette=isTerrain?0: width>50&&height<3?1:height>width*.8&&height>12?3:width>15?2+(id%6===0):4+(id%4);
-    const item={v,idx:h.idx,small:width<2.7&&height<2.7,palette};
+    const item={v,idx:h.idx,small:width<2.7&&height<2.7,palette,id,instance:inst,min,max,cell:key};
     if (!cells.has(key)) cells.set(key,[]);
     cells.get(key).push(item);
     (isTerrain?terrain:parts).push(item);
   }
 }
 // Each cell has its own quantization range. The full-detail stream retains every source triangle.
-function pack(list, lod) {
+function pack(list, lod, finishes) {
   let n=0,t=0;
   list=list.filter(item=>!lod||!item.small);
   for (const h of list) { n+=h.v.length; t+=h.idx.length; }
@@ -91,6 +92,8 @@ function pack(list, lod) {
   }
   let reduced=idx;
   if (lod && t>90) [reduced]=simplify.simplify(idx,v,3,Math.max(12,Math.floor(t/3*.14)*3),.015);
+  const runs=surfaceRuns(list,reduced,lod);
+  if(runs.length)finishes[lod?'far':'near']=runs;
   const remap=new Int32Array(n/3).fill(-1);
   let verts=0;
   for(const i of reduced) if(remap[i]===-1) remap[i]=verts++;
@@ -132,18 +135,23 @@ function bakeHeight() {
 
 }
 async function main(){
-  await simplify.ready; readGeometry(); placeGeometry(); bakeHeight();
+  await simplify.ready; readGeometry(); placeGeometry(); identifySurfaces(parts); bakeHeight();
   const manifest=[];
   const overview=[];
+  const surfaces={};
   for(const [key,list] of cells) {
-    const low=pack(list,true), full=pack(list,false);
+    const finishes={};
+    const low=pack(list,true,finishes), full=pack(list,false,finishes);
     const file=key+'.gz';
+    if(finishes.near||finishes.far)surfaces[file]=finishes;
     fs.writeFileSync(path.join(out,file),zlib.gzipSync(full,{level:8}));
     if(low) overview.push(low);
     manifest.push({file, overview:!!low,min:[0,1,2].map(k=>full.readFloatLE(8+k*4)),max:[0,1,2].map(k=>full.readFloatLE(20+k*4))});
   }
   fs.writeFileSync(path.join(out,'overview.gz'),zlib.gzipSync(Buffer.concat(overview),{level:8}));
   fs.writeFileSync(path.join(out,'cells.json'),JSON.stringify(manifest));
+  fs.writeFileSync(path.join(out,'appearance.gz'),zlib.gzipSync(JSON.stringify(surfaces)));
+  console.log({duplicateShells:parts.filter(p=>p.twin).length,windowTriangles:parts.reduce((n,p)=>n+(p.panes?.length||0),0)});
   console.log({hullCount,tileCount,instances:count,cells:cells.size,overviewBytes:fs.statSync(path.join(out,'overview.gz')).size});
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

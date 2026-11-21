@@ -87,5 +87,23 @@ function buildStops(region){
   if(!region.includeOtherLevels)return confirmed;
   return confirmed.concat(findStops(region).filter(stop=>confirmed.every(s=>Math.abs(s.y-stop.y)>=3.4)));
 }
-const out={};for(const r of regions){out[r.name]=buildStops(r);console.log(r.name,out[r.name].map(l=>l.y))}
+// Walkable approaches to the window bays and the office sculpture, in scene metres.
+const views={
+  '中控区':{label:'南侧斜窗',x:-26,z:-211.5,probeY:-12,yaw:Math.PI,pitch:-.23},
+  '宿舍区':{label:'弧窗客房',x:-183.7,z:-108.9,probeY:-15.2,yaw:Math.PI/2,pitch:-.04},
+  '总裁室':{label:'雕塑前厅',x:5.4,z:3.8,probeY:-5,yaw:1.05,pitch:.09}
+};
+function viewStop({label,x,z,probeY,yaw,pitch}){
+  const origin=new THREE.Vector3(x,probeY,z);
+  const floor=rays(tiles,origin,down,5)[0];
+  if(!floor||Math.abs(floor.face.normal.y)<.94)throw Error('Missing floor at '+label);
+  origin.y=floor.point.y+.03;
+  if(rays(tiles,origin,up,1.95).length)throw Error('Insufficient headroom at '+label);
+  return {label,x,y:+floor.point.y.toFixed(3),z,yaw:+yaw.toFixed(4),pitch};
+}
+const out={};for(const r of regions){
+  out[r.name]=buildStops(r);
+  if(views[r.name])out[r.name].push(viewStop(views[r.name]));
+  console.log(r.name,out[r.name].map(l=>l.y));
+}
 fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));

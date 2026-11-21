@@ -26,3 +26,5 @@ dialog{max-width:min(480px,90vw);background:#1b211d;color:#edf2e9;border:1px sol
 #map-player{position:absolute;left:0;top:0;pointer-events:none;color:#d6ff8c}#map-player i{position:absolute;left:-9px;top:-11px;width:18px;height:22px;background:#e3ff92;clip-path:polygon(50% 0%,100% 96%,50% 73%,0 96%);transform-origin:50% 50%}#map-player::before{content:'';position:absolute;left:-14px;top:-14px;width:28px;height:28px;border-radius:50%;background:#24381dd9;box-shadow:0 0 0 2px #ccfa7aaa}#map-player span{position:absolute;left:19px;top:-8px;white-space:nowrap;font-size:12px;padding:1px 5px;background:#182418e8;border-radius:3px}
 .map-footer{border-top:1px solid #485444}.map-footer output{color:#c8d4c1;font:11px var(--mono)}.map-footer>div{display:flex;gap:5px}.map-footer button{font-size:13px}
 @media(max-width:700px){#route-map{inset:5px}.map-header,.map-footer{padding:8px}.map-footer{flex-wrap:wrap}.map-header h2{font-size:16px}.map-footer button{padding:4px 7px}}
+
+.sculpture-reference{max-height:55dvh;width:auto;margin-inline:auto}

@@ -1,4 +1,86 @@
 'use strict';
+let architecturalMaterials;
+function makeArchitecturalMaterials(base){
+  const vertexShader=`varying vec3 sitePosition;
+    void main(){sitePosition=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
+  const shader=(fragmentShader,transparent=false)=>new THREE.ShaderMaterial({
+    vertexShader,fragmentShader,transparent,depthWrite:!transparent,side:THREE.DoubleSide,
+    forceSinglePass:true,extensions:{derivatives:true}
+  });
+  const glass=shader(`varying vec3 sitePosition;
+    void main(){
+      vec3 n=normalize(cross(dFdx(sitePosition),dFdy(sitePosition)));
+      vec3 eye=normalize(cameraPosition-sitePosition);
+      vec3 reflected=reflect(-eye,n);
+      float rim=pow(1.-abs(dot(n,eye)),2.8);
+      float sky=smoothstep(-.1,.65,reflected.y);
+      bool control=sitePosition.z< -195.&&abs(sitePosition.x)<58.;
+      vec3 tint=control?vec3(.19,.25,.27):vec3(.27,.30,.30);
+      vec3 sheen=mix(tint,vec3(.64,.74,.77),sky*.54+rim*.19);
+      gl_FragColor=vec4(sheen,.20+.45*rim);
+    }`,true);
+  const collider=new THREE.MeshBasicMaterial({side:THREE.DoubleSide,visible:false});
+  const steel=shader(`varying vec3 sitePosition;
+    uniform sampler2D metalPhoto;
+    uniform vec3 photoEye;
+    uniform mat3 photoAxes;
+    uniform vec2 focal, principal, depthScale;
+    uniform float photoReady;
+    void main(){
+      vec3 n=normalize(cross(dFdx(sitePosition),dFdy(sitePosition)));
+      vec3 reflection=reflect(-normalize(cameraPosition-sitePosition),n);
+      float ceiling=smoothstep(-.33,.6,reflection.y);
+      float window=smoothstep(.26,.72,reflection.z)*(1.-smoothstep(.15,.9,abs(reflection.y)));
+      float brush=sin(sitePosition.y*520.)*(1.-smoothstep(.05,.6,fwidth(sitePosition.y*80.)));
+      vec3 steel=mix(vec3(.17,.18,.17),vec3(.46,.44,.38),ceiling);
+      steel+=vec3(.27,.32,.33)*window+brush*.012;
+      vec3 ray=sitePosition-photoEye;
+      vec3 local=photoAxes*ray;
+      if(photoReady>.5 && local.z>0.){
+        vec2 uv=local.xy/local.z*focal+principal;
+        if(all(greaterThanEqual(uv,vec2(0.))) && all(lessThanEqual(uv,vec2(1.)))){
+          vec4 sampleMetal=texture2D(metalPhoto,uv);
+          float depth=(sampleMetal.a*255.-2.)*depthScale.y+depthScale.x;
+          float seen=step(.005,sampleMetal.a)*(1.-smoothstep(.015,.055,abs(depth-local.z)));
+          float angle=smoothstep(.12,.55,dot(normalize(ray),normalize(sitePosition-cameraPosition)));
+          steel=mix(steel,sampleMetal.rgb,seen*angle*.92);
+        }
+      }
+      gl_FragColor=vec4(steel,1.);
+    }`);
+  steel.uniforms={metalPhoto:{value:null},photoEye:{value:new THREE.Vector3()},photoAxes:{value:new THREE.Matrix3()},
+    focal:{value:new THREE.Vector2()},principal:{value:new THREE.Vector2()},depthScale:{value:new THREE.Vector2()},photoReady:{value:0}};
+  return [base,glass,collider,steel];
+}
+async function registerSteelPhoto(p){
+  const photo=await new THREE.TextureLoader().loadAsync('data/sculpture-finish.webp');
+  photo.flipY=false;photo.generateMipmaps=false;photo.minFilter=photo.magFilter=THREE.NearestFilter;photo.needsUpdate=true;
+  const u=architecturalMaterials[3].uniforms;
+  u.metalPhoto.value=photo;u.photoEye.value.fromArray(p.eye);u.photoAxes.value.set(...p.rotation.flat());
+  u.focal.value.fromArray(p.focal);u.principal.value.fromArray(p.center);u.depthScale.value.fromArray(p.depth);
+  u.photoReady.value=1;dirty=true;
+}
+// Collect contiguous draw groups while retaining every survey triangle for BVH queries.
+function applySurfaceRuns(geo,index,runs){
+  const sizes=[index.length,0,0,0];
+  for(const [,count,role] of runs){sizes[role]+=count*3;sizes[0]-=count*3}
+  const result=new index.constructor(index.length),cursor=[];
+  let start=0;
+  sizes.forEach((count,role)=>{
+    cursor[role]=start;
+    if(count)geo.addGroup(start,count,role);
+    start+=count;
+  });
+  function copy(first,end,role){
+    result.set(index.subarray(first,end),cursor[role]);cursor[role]+=end-first;
+  }
+  let previous=0;
+  for(const [face,count,role] of runs){
+    copy(previous,face*3,0);previous=(face+count)*3;copy(face*3,previous,role);
+  }
+  copy(previous,index.length,0);
+  return result;
+}
 // World-space texture coordinates keep the same material scale across all streamed cells.
 const architecturalSurfaces=`
 uniform sampler2D finishColor;

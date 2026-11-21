@@ -45,4 +45,5 @@ async function installOffice(){
   scene.add(hemi,sun,group);group.updateMatrixWorld(true);
   officeBounds=new THREE.Box3().setFromObject(group);
   surveyViews.set('ceo',study.views[0]);dirty=true;
+  await registerSteelPhoto(study.sculpture);
 }

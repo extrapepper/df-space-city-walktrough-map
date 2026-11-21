@@ -108,7 +108,7 @@ async function inflated(file) {
 }
 async function jsonFile(file){const res=await fetch('data/'+file);if(!res.ok)throw Error(file);return res.json()}
 function topAt(x,z){const col=clamp(Math.round(x+512),0,1023),row=clamp(Math.round(z+512),0,1023);return Math.max(-96,(heights?.[row*1024+col]??-3800)*.01)}
-function readMesh(view,offset){
+function readMesh(view,offset,surfaceRuns){
   let p=offset;
   const uint=()=>{const v=view.getUint32(p,true);p+=4;return v};
   const float=()=>{const v=view.getFloat32(p,true);p+=4;return v};
@@ -119,17 +119,19 @@ function readMesh(view,offset){
   const index=n>65535?new Uint32Array(t):new Uint16Array(t);
   for(let i=0;i<t;i++,p+=index.BYTES_PER_ELEMENT)index[i]=n>65535?view.getUint32(p,true):view.getUint16(p,true);
   const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('regionColor',new THREE.BufferAttribute(Uint8Array.from(color),1));geo.setIndex(new THREE.BufferAttribute(index,1));
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('regionColor',new THREE.BufferAttribute(Uint8Array.from(color),1));
+  geo.setIndex(new THREE.BufferAttribute(surfaceRuns?applySurfaceRuns(geo,index,surfaceRuns):index,1));
   geo.boundingBox=new THREE.Box3(new THREE.Vector3(...lo),new THREE.Vector3(...hi));
   geo.computeBoundingSphere();
-  return {mesh:new THREE.Mesh(geo,material),offset:p};
+  return {mesh:new THREE.Mesh(geo,surfaceRuns?architecturalMaterials:material),offset:p};
 }
 async function initialize3D(){
   gl=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance',alpha:true});
   gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
   target=new THREE.Vector3(0,-25,24);
-  const [field,manifest,overview,water]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz')]);
+  const [field,manifest,overview,water,appearance]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz')]);
+  const finishes=JSON.parse(new TextDecoder().decode(appearance));
   const photo=new THREE.Texture(atlas);
   photo.flipY=false;photo.needsUpdate=true;
   heights=new Int16Array(field);
@@ -138,6 +140,7 @@ async function initialize3D(){
   const texture=new THREE.DataTexture(rgba,1024,1024);texture.needsUpdate=true;
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
   material.defines={SURVEY_COUNT:1};
+  architecturalMaterials=makeArchitecturalMaterials(material);
   Object.assign(material.uniforms,{
     surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},
     surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
@@ -148,7 +151,8 @@ async function initialize3D(){
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
-    if(cell.overview){const result=readMesh(view,p);cell.low=result.mesh;p=result.offset;scene.add(cell.low)}
+    cell.surfaces=finishes[cell.file];
+    if(cell.overview){const result=readMesh(view,p,cell.surfaces?.far);cell.low=result.mesh;p=result.offset;scene.add(cell.low)}
     cell.bbox=new THREE.Box3(new THREE.Vector3(...cell.min),new THREE.Vector3(...cell.max));
     return cell;
   });
@@ -228,7 +232,7 @@ function fetchCell(cell){
 async function readCell(cell){
   activeLoads++;cell.loading=true;
   try{
-    const buf=await inflated(cell.file),{mesh}=readMesh(new DataView(buf),0);
+    const buf=await inflated(cell.file),{mesh}=readMesh(new DataView(buf),0,cell.surfaces?.near);
     cell.full=mesh;scene.add(mesh);resident.add(cell);
     if(cell.low)cell.low.visible=false;
     dirty=true;return true;
@@ -300,7 +304,7 @@ async function changeView(mode,arrival=false){
         if(loaded.some(v=>!v)){note('起点模型尚未载入，请重试');return}
         if(stop.water){camera.position.set(stop.x,harbor.level+.28,stop.z);groundVelocity=0}
         else dropAt(stop.x,stop.z,stop.y==null?null:stop.y+.3);
-        flyYaw=stop.yaw??Math.atan2(stop.x-pt.x,stop.z-pt.z);flyPitch=-.04;
+        flyYaw=stop.yaw??Math.atan2(stop.x-pt.x,stop.z-pt.z);flyPitch=stop.pitch??-.04;
       }else{
         const dist=chosen?48:190;
         camera.position.set(anchor.x+dist*.7,topAt(anchor.x,anchor.z)+dist*.65,anchor.z+dist);
