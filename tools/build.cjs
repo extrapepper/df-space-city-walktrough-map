@@ -41,7 +41,7 @@ function meshEnd(bytes, offset, runs = []) {
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<4+cabins.length, 'Invalid triangle material range');
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=4+cabins.length, 'Invalid triangle material range');
   }
   return offset + 32 + vertices * 7 + indices * (vertices > 65535 ? 4 : 2);
 }
@@ -56,6 +56,14 @@ assert.equal(overviewOffset, overview.length);
 assert.equal(gunzipSync(read('data/height.gz')).length, 1024 * 1024 * 2);
 const water = gunzipSync(read('data/water.gz'));
 assert.equal(water.length, 16 + water.readUInt32LE(0) ** 2);
+const basin=JSON.parse(gunzipSync(read('data/basin.gz'))),rings=basin.profiles;
+assert(basin.layers.length && basin.layers[0][0]<-89 && basin.layers.at(-1)[1]===basin.full);
+for(const [i,[lo,hi,a,b]] of basin.layers.entries()){
+  assert(hi>lo && (!i||basin.layers[i-1][1]===lo) && rings[a] && rings[b]);
+}
+for(const ring of rings)assert(ring.length===256&&ring.every(cm=>cm>400&&cm<3200));
+assert(nearRoles.has(4+cabins.length));
+for(const file of ['flood-console.webp','flood-housing.webp'])assert(read('data/'+file).length>0,file);
 const landings = json('landings.json');
 for (const point of json('regions.json')) assert(landings[point.name]?.length, point.name);
 for (const stem of ['satellite.webp', 'survey-depth.png', 'survey-photos.webp', 'surfaces-color.webp', 'surfaces-normal.webp', 'office-seats.webp', 'office-study.json', 'office-globe.webp', 'sculpture-finish.webp', 'sculpture-reference.webp', 'lab-coatings.webp', 'buoyancy-finish.webp', 'buoyancy.webp', 'buoyancy-lower.webp']) {

@@ -28,3 +28,9 @@ dialog{max-width:min(480px,90vw);background:#1b211d;color:#edf2e9;border:1px sol
 @media(max-width:700px){#route-map{inset:5px}.map-header,.map-footer{padding:8px}.map-footer{flex-wrap:wrap}.map-header h2{font-size:16px}.map-footer button{padding:4px 7px}}
 
 .sculpture-reference{max-height:55dvh;width:auto;margin-inline:auto}
+#flood-action{position:absolute;z-index:5;left:50%;top:59%;transform:translateX(-50%);display:flex;align-items:center;gap:.6em;min-height:42px;padding:8px 14px;background:rgba(17,26,23,.92);color:#f3f5e9;border:1px solid #8ba47c;border-radius:4px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+#flood-action[hidden],#reset-flood[hidden]{display:none}
+#flood-action kbd{font:inherit;color:#c6ea88;border:1px solid #829574;border-radius:3px;padding:0 4px}
+#flood-action:disabled{color:#efca80;cursor:default}
+#reset-flood{margin:5px 0;color:#c9d0c3;background:transparent;border:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+@media(pointer:coarse){#flood-action kbd{display:none}}

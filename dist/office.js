@@ -42,6 +42,7 @@ async function installOffice(){
   }),1.11,-5.13,19.024);glass.renderOrder=1;
   const hemi=new THREE.HemisphereLight(0xe7f7ff,0x796349,1.65);
   const sun=new THREE.DirectionalLight(0xffe4b8,2.25);sun.position.set(8,14,11);
+  hemi.layers.enable(poolReflectionLayer);sun.layers.enable(poolReflectionLayer);
   scene.add(hemi,sun,group);group.updateMatrixWorld(true);
   officeBounds=new THREE.Box3().setFromObject(group);
   surveyViews.set('ceo',study.views[0]);dirty=true;

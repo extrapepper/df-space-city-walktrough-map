@@ -50,7 +50,15 @@ function makeArchitecturalMaterials(base,cabins){
     }`);
   steel.uniforms={metalPhoto:{value:null},photoEye:{value:new THREE.Vector3()},photoAxes:{value:new THREE.Matrix3()},
     focal:{value:new THREE.Vector2()},principal:{value:new THREE.Vector2()},depthScale:{value:new THREE.Vector2()},photoReady:{value:0}};
-  return [base,glass,collider,steel,...cabins.map(makeCabinMaterial)];
+  const rung=shader(`varying vec3 sitePosition;uniform float submerged;uniform vec3 immersionTint;
+    void main(){
+      vec3 n=normalize(cross(dFdx(sitePosition),dFdy(sitePosition)));
+      vec3 paint=vec3(.75,.56,.18)*(.72+.28*abs(dot(n,normalize(vec3(.4,.8,.36)))));
+      float haze=submerged*(1.-exp(-.046*distance(cameraPosition,sitePosition)));
+      gl_FragColor=vec4(mix(paint,immersionTint,haze),1.);
+    }`);
+  rung.uniforms={submerged:labUniforms.submerged,immersionTint:labUniforms.immersionTint};
+  return [base,glass,collider,steel,...cabins.map(makeCabinMaterial),rung];
 }
 async function registerSteelPhoto(p){
   const photo=await new THREE.TextureLoader().loadAsync('data/sculpture-finish.webp');

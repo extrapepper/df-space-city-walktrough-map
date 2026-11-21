@@ -3,6 +3,7 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const crypto = require('node:crypto');
 const { identifySurfaces, surfaceRuns } = require('./appearance.cjs');
+const { measureBasin } = require('./basin.cjs');
 const THREE = require('../dist/vendor/three.min.js');
 const simplify = require(process.argv[3] || 'meshoptimizer/meshopt_simplifier.js');
 const data = fs.readFileSync(process.argv[2]);
@@ -136,6 +137,8 @@ function bakeHeight() {
 }
 async function main(){
   await simplify.ready; readGeometry(); placeGeometry(); identifySurfaces(parts); bakeHeight();
+  const basin=measureBasin(parts.find(p=>p.instance===4566&&p.id===599));
+  fs.writeFileSync(path.join(out,'basin.gz'),zlib.gzipSync(JSON.stringify(basin)));
   const manifest=[];
   const overview=[];
   const surfaces={};

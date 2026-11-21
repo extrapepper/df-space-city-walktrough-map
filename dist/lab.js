@@ -4,7 +4,8 @@
 const labUniforms={
   labPhoto:{value:null},labEye:{value:[]},labAxes:{value:[]},labRect:{value:[]},
   labFocal:{value:[]},labPrincipal:{value:[]},labDepth:{value:[]},
-  labReady:{value:0},cabinSkin:{value:null},skinReady:{value:0}
+  labReady:{value:0},cabinSkin:{value:null},skinReady:{value:0},
+  submerged:{value:0},immersionTint:{value:new THREE.Color(.075,.205,.205)},immersionLevel:{value:-100}
 };
 for(let i=0;i<2;i++){
   labUniforms.labEye.value.push(new THREE.Vector3());labUniforms.labAxes.value.push(new THREE.Matrix3());
@@ -46,7 +47,7 @@ function makeCabinMaterial(frame){
       void main(){site=position;localPoint=basis*(position-center);
       gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader:`varying vec3 localPoint,site;
-      uniform float kind,halfLength,skinReady;uniform sampler2D cabinSkin;
+      uniform float kind,halfLength,skinReady,submerged,immersionLevel;uniform vec3 immersionTint;uniform sampler2D cabinSkin;
       ${labProjection}
       void main(){
         vec3 p=localPoint,n=normalize(cross(dFdx(p),dFdy(p)));
@@ -62,7 +63,8 @@ function makeCabinMaterial(frame){
           vec4 coating=texture2D(cabinSkin,texel/vec2(1024.,768.));
           color=mix(color,coating.rgb,coating.a);
         }
-        gl_FragColor=vec4(labFinish(color,site,siteNormal),1.);
+        float wetPath=distance(cameraPosition,site)*clamp((immersionLevel-cameraPosition.y)/max(.001,site.y-cameraPosition.y),0.,1.);
+        gl_FragColor=vec4(mix(labFinish(color,site,siteNormal),immersionTint,submerged*(1.-exp(-.046*wetPath))),1.);
       }`
   });
 }

@@ -33,6 +33,8 @@ function identifySurfaces(parts) {
     if (part.id === 1022) part.finish = 3;
     const cabin=cabinFinishes.get(part.instance);
     if(cabin && cabin.hull===part.id)part.finish=cabin.role;
+    if(part.id>=1378&&part.id<=1383 && part.min[0]>-48&&part.max[0]<-45 &&
+       part.min[2]>-55&&part.max[2]<-43)part.finish=4+cabins.length;
     const candidates = twins.get(part.id);
     if (!candidates) continue;
     const reach = part.id === 6 ? 5 : 2;

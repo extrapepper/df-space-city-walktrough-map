@@ -31,25 +31,50 @@ function overHarbor(x,z){
   const col=Math.floor((x-harbor.origin)/harbor.spacing),row=Math.floor((z-harbor.origin)/harbor.spacing);
   return col>=0&&row>=0&&col<harbor.size&&row<harbor.size&&harbor.pixels[row*harbor.size+col]!==0;
 }
+function waterAt(eye){
+  if(pool?.surface.visible&&insideBasin(eye.x,Math.min(eye.y,pool.level),eye.z))return pool;
+  return overHarbor(eye.x,eye.z)?harbor:null;
+}
 function updateImmersion(){
-  const eye=camera.position,wet=overHarbor(eye.x,eye.z);
-  const immersed=wet&&eye.y<harbor.level-.08;
-  const afloat=view==='walk'&&wet&&eye.y<harbor.level+.42;
+  const eye=camera.position,body=waterAt(eye);
+  const immersed=!!body&&eye.y<body.level-.08;
+  const afloat=view==='walk'&&!!body&&eye.y<body.level+.42;
   material.uniforms.submerged.value=Number(immersed);
-  scene.background=immersed?underwaterColor:null;
+  material.uniforms.immersionLevel.value=body?.level??-100;
+  const tint=body&&body===pool?poolBlue:underwaterColor;
+  material.uniforms.immersionTint.value.copy(tint);
+  scene.background=immersed?tint:null;
   if(swimming!==afloat){swimming=afloat;syncMode()}
 }
 function swimStep(dx,dz,vertical,dt){
-  const eye=camera.position;
+  const eye=camera.position,body=waterAt(eye);
+  if(!body){swimming=false;walkStep(dx,dz,dt);syncMode();return}
+  if(body===pool&&vertical>0&&eye.y>body.level-.25&&climbPoolEdge(dx,dz))return;
   slideHorizontal(dx,dz,eye.y,[-.64,-.1]);
   const delta=vertical*3.2*dt,clearance=.25;
   const obstacle=delta?hit(eye,delta>0?waterUp:down,Math.abs(delta)+clearance):null;
   eye.y+=Math.sign(delta)*Math.min(Math.abs(delta),obstacle?Math.max(0,obstacle.distance-clearance):Infinity);
-  eye.y=Math.min(eye.y,harbor.level+.28);
+  eye.y=Math.min(eye.y,body.level+.28);
   const floor=hit(new THREE.Vector3(eye.x,eye.y+.35,eye.z),down,1.6);
   if(floor){
-    const shallow=floor.point.y>harbor.level-1.2;
+    const shallow=floor.point.y>body.level-1.2;
     eye.y=Math.max(eye.y,floor.point.y+(shallow?1.7:.72));
   }
   groundVelocity=0;
+}
+function climbPoolEdge(dx,dz){
+  const eye=camera.position,dir=new THREE.Vector3(dx,0,dz);
+  if(dir.lengthSq()<1e-9)return false;
+  dir.normalize();
+  const to=eye.clone().addScaledVector(dir,.85);to.y=pool.level+1.05;
+  if(insideBasin(to.x,pool.level,to.z))return false;
+  const floor=hit(to,down,1.42);
+  if(!floor||floor.point.y>pool.level+.61||Math.abs(floor.face.normal.y)<.86)return false;
+  for(const h of [.36,1.36]){
+    const start=new THREE.Vector3(eye.x,floor.point.y+h,eye.z);
+    if(hit(start,dir,1.04))return false;
+  }
+  const landing=floor.point.clone();landing.y+=.05;
+  if(hit(landing,waterUp,1.8))return false;
+  eye.set(to.x,floor.point.y+1.7,to.z);groundVelocity=0;updateImmersion();return true;
 }

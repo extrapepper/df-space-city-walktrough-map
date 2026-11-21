@@ -109,6 +109,8 @@ const out={};for(const r of regions){
       viewStop({label:'池沿吊架',x:-43,z:-52,probeY:-27,yaw:2.18265,pitch:-.1274}),
       viewStop({label:'深潜池下层',x:-56,z:-39,probeY:-39,yaw:-2.1588,pitch:.19})
     );
+    out[r.name].splice(2,0,viewStop({label:'注水控制台 · S8',x:-43.65,z:-53.17,probeY:-27.3,yaw:2.38,pitch:-.25}));
+    out[r.name].splice(3,0,viewStop({label:'池底黄梯',x:-46.60,z:-43.49,probeY:-39.6,yaw:0,pitch:.16}));
   }
   console.log(r.name,out[r.name].map(l=>l.y));
 }
