@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101413"><title>航天基地 · 三角洲地图集</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23cff678' d='m16 2 15 27H1zm0 10-5 10h10z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="atlas.css">
+</head>
+<body>
+<header><div class="brand"><svg viewBox="0 0 40 36" aria-hidden="true"><path fill="currentColor" d="M20 0 39 33H26L12 9l5-8 11 19-8-13-3 5 12 21H1l9-16 5 8-1 2h5L9 10z"/></svg><div><b>三角洲地图集</b><small>DELTA ATLAS</small></div></div><div class="head-path"><i data-icon="layers"></i>地图探索<span>/</span><strong>航天基地</strong></div><div class="head-tools"><button id="guide"><i data-icon="keyboard"></i><span>操作指南</span></button><button id="fullscreen" class="square" title="全屏" aria-label="全屏"><i data-icon="expand"></i></button></div></header>
+<main>
+<aside id="sidebar">
+<div class="cover"><div class="cover-content"><span class="tag"><i></i>烽火地带</span><h1>航天基地</h1><p>SPACE CITY</p></div></div>
+<div class="index-title"><h2>区域索引</h2><span>13 个地标</span></div>
+<div class="search"><i data-icon="search"></i><input id="search" type="search" placeholder="搜索区域或地标" aria-label="搜索区域或地标"><kbd>/</kbd></div>
+<div id="places"></div>
+<div class="layers"><h2><i data-icon="layers"></i>地图图层</h2><label><span>地标名称</span><input id="labels-on" type="checkbox" checked><i class="switch"></i></label><label><span>地形等高线</span><input id="contours" type="checkbox" checked><i class="switch"></i></label></div>
+</aside>
+<section id="stage" aria-label="航天基地交互地图">
+<div id="viewport"></div><canvas id="flat" hidden></canvas><div id="vignette"></div>
+<div id="markers"></div>
+<div class="stage-top"><button id="index-toggle" aria-label="区域索引"><i data-icon="list"></i></button><div class="mode-tabs"><button id="mode3" class="on"><i data-icon="box"></i>三维沙盘</button><button id="mode2"><i data-icon="map"></i>平面地图</button></div></div>
+<div class="compass"><strong id="heading">N</strong><div class="ticks"></div><b></b></div>
+<div id="locator" hidden><canvas width="160" height="132" aria-label="实时位置小地图"></canvas><span>当前位置</span></div><div class="nav-tools"><button id="plus" aria-label="放大" title="放大"><i data-icon="plus"></i></button><button id="minus" aria-label="缩小" title="缩小"><i data-icon="minus"></i></button><hr><button id="reset" aria-label="全图复位" title="全图复位 R"><i data-icon="focus"></i></button></div>
+<div id="selection" hidden><span id="detail-group"></span><button id="deselect" class="close" aria-label="关闭地标详情">×</button><h2 id="detail-name"></h2><p id="detail-text"></p><button id="reference-photo" hidden>查看游戏画面</button><label id="landing-label">漫游起点<select id="landing" aria-label="按场景高度选择漫游起点"></select></label><button id="enter-here">在此漫游 <i data-icon="walk"></i></button></div>
+<div class="scale-bar" id="scale-bar"><span></span><i></i></div><div class="stage-bottom"><div class="view-info"><div><i></i><span id="view-label">全域总览</span></div><small id="hint">拖动旋转 · 滚轮缩放</small></div><div id="navigation"><button id="orbit" class="on" title="轨道环绕"><i data-icon="orbit"></i><span>环绕</span></button><button id="fly" title="自由相机"><i data-icon="fly"></i><span>自由飞行</span></button><button id="walk" title="第一人称步行"><i data-icon="walk"></i><span>步行</span></button></div></div>
+<div id="touchpad" hidden><button data-key="KeyW" aria-label="前进">▲</button><div><button data-key="KeyA" aria-label="左移">◀</button><button data-key="KeyS" aria-label="后退">▼</button><button data-key="KeyD" aria-label="右移">▶</button></div><div id="vertical"><button data-key="KeyE">升</button><button data-key="KeyQ">降</button></div></div>
+<div id="busy" role="status"><span></span><b>正在载入地形</b><small id="load-status">读取航天基地场景</small></div>
+<div id="toast" role="status" hidden></div>
+</section></main>
+<footer><span class="status"><b></b><span id="ready">正在加载</span></span><span class="coords" id="coords">X —　Y —　H —</span><button id="source"><i data-icon="info"></i>地图资料</button></footer>
+<dialog id="dialog"><div class="dialog-title"><h2></h2><button id="close-dialog" class="close" aria-label="关闭">×</button></div><div id="dialog-body"></div></dialog>
+<script src="vendor/three.min.js"></script><script src="vendor/bvh.js"></script>
+<script src="ui.js"></script><script src="scene.js"></script><script src="app.js"></script>
+</body></html>

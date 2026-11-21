@@ -1,0 +1,296 @@
+'use strict';
+const viewport=$('viewport'), stage=$('stage');
+let gl, scene, camera, material, tiles=[], heights, atlas, grid, dirty=true;
+let radius=1050, azimuth=.68, pitch=.78, target, flyYaw=0, flyPitch=0, groundVelocity=0, transition=null;
+let arrivalSerial=0,awaitingLanding=false;
+let glReady=false, detailClock=0, activeLoads=0, frameNum=0;
+const rays=[], keys=new Set(), pointers=new Map(), resident=new Set();
+const DEG=Math.PI/180;
+const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
+const palette=[[.39,.42,.30],[.48,.48,.43],[.70,.71,.64],[.47,.55,.56],[.46,.51,.47],[.60,.51,.40],[.51,.57,.59],[.61,.62,.56]];
+const vertexShader=`
+attribute float regionColor;
+varying float category;
+varying vec3 world;
+void main(){
+  category=regionColor;
+  world=position;
+  gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+}`;
+const fragmentShader=`
+uniform sampler2D chart;
+uniform sampler2D elevation;
+uniform float contours;
+uniform vec3 colors[8];
+varying vec3 world;
+varying float category;
+float roof(vec2 p){
+ vec4 packedHeight=texture2D(elevation,clamp((p+512.5)/1024.,0.,1.));
+ return (dot(packedHeight.rg,vec2(255.,65280.))-32768.)*.01;
+}
+void main(){
+ vec3 n=normalize(cross(dFdx(world),dFdy(world)));
+ if(n.y<0. && category<.5)n=-n;
+ vec2 uv=(world.xz-vec2(6.87,63.8025))/1308.85742+.5;
+ vec3 ortho=texture2D(chart,uv).rgb;
+ float satellite=dot(ortho,vec3(.30,.52,.18));
+ float high=roof(world.xz);
+ float exterior=(1.-smoothstep(.5,9.,max(0.,high-world.y)));
+ float up=abs(n.y);
+ vec3 base=colors[int(floor(category+.5))];
+ float water=smoothstep(.009,.035,ortho.b-ortho.r)*(1.-smoothstep(.085,.23,satellite));
+ if(category<.5){
+   base=mix(vec3(.29,.30,.24),vec3(.58,.58,.46),clamp(satellite*3.0,0.,1.));
+   base=mix(base,vec3(.12,.25,.25),water);
+ }else{
+   base=mix(base,vec3(.27,.32,.31)+vec3(.85,.83,.74)*sqrt(satellite),up*exterior*.95);
+ }
+ float sun=dot(n,normalize(vec3(-.52,.90,-.36)));
+ float shade=clamp(.79+.34*sun,.50,1.17);
+ float shadow=0.;
+ for(int i=1;i<=5;i++){
+    float d=float(i*i)*1.6;
+    float obstacle=roof(world.xz+vec2(-.72,-.52)*d)-world.y-d*.88;
+    shadow=max(shadow,smoothstep(.7,4.,obstacle));
+ }
+ base*=shade*mix(1.,.69,shadow*exterior);
+ if(category<.5){
+    float edge=abs(fract(world.y/5.+.5)-.5)/max(fwidth(world.y/5.),.001);
+    base=mix(base,base*.72,(1.-smoothstep(.1,1.,edge))*contours*.56*(1.-water));
+ }
+ float noise=fract(sin(dot(floor(world*19.),vec3(.19,3.19,7.41)))*471.37);
+ base+=.016*(noise-.5);
+ float fall=smoothstep(360.,650.,length((world.xz-vec2(0.,22.))*vec2(1.18,.9)));
+ gl_FragColor=vec4(mix(base,vec3(.115,.153,.135),fall*.89),1.);
+}`;
+async function inflated(file) {
+  const reply=await fetch('data/'+file);
+  if(!reply.ok) throw Error('地图文件读取失败 '+file);
+  const bytes=await reply.arrayBuffer();
+  if(new Uint8Array(bytes)[0]!==31)return bytes; // A host may have already applied transport decompression.
+  const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).arrayBuffer();
+}
+async function jsonFile(file){const res=await fetch('data/'+file);if(!res.ok)throw Error(file);return res.json()}
+function topAt(x,z){const col=clamp(Math.round(x+512),0,1023),row=clamp(Math.round(z+512),0,1023);return Math.max(-96,(heights?.[row*1024+col]??-3800)*.01)}
+function readMesh(view,offset){
+  let p=offset;
+  const uint=()=>{const v=view.getUint32(p,true);p+=4;return v};
+  const float=()=>{const v=view.getFloat32(p,true);p+=4;return v};
+  const n=uint(),t=uint(),lo=[float(),float(),float()],hi=[float(),float(),float()];
+  const pos=new Float32Array(n*3);
+  for(let i=0;i<pos.length;i++,p+=2){const k=i%3;pos[i]=lo[k]+view.getUint16(p,true)*(hi[k]-lo[k])/65535}
+  const color=new Uint8Array(view.buffer,p,n);p+=n;
+  const index=n>65535?new Uint32Array(t):new Uint16Array(t);
+  for(let i=0;i<t;i++,p+=index.BYTES_PER_ELEMENT)index[i]=n>65535?view.getUint32(p,true):view.getUint16(p,true);
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('regionColor',new THREE.BufferAttribute(Uint8Array.from(color),1));geo.setIndex(new THREE.BufferAttribute(index,1));
+  geo.boundingBox=new THREE.Box3(new THREE.Vector3(...lo),new THREE.Vector3(...hi));
+  geo.computeBoundingSphere();
+  return {mesh:new THREE.Mesh(geo,material),offset:p};
+}
+async function initialize3D(){
+  gl=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance',alpha:true});
+  gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
+  scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
+  target=new THREE.Vector3(0,-25,24);
+  const [photo,field,manifest,overview]=await Promise.all([new THREE.TextureLoader().loadAsync('data/satellite.webp'),inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz')]);
+  photo.flipY=false;photo.needsUpdate=true;
+  heights=new Int16Array(field);
+  const rgba=new Uint8Array(1024*1024*4);
+  heights.forEach((h,i)=>{const v=h+32768;rgba[4*i]=v&255;rgba[4*i+1]=v>>8;rgba[4*i+3]=255});
+  const texture=new THREE.DataTexture(rgba,1024,1024);texture.needsUpdate=true;
+  material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
+  const view=new DataView(overview);let p=0;
+  tiles=manifest.map(cell=>{
+    if(cell.overview){const result=readMesh(view,p);cell.low=result.mesh;p=result.offset;scene.add(cell.low)}
+    cell.bbox=new THREE.Box3(new THREE.Vector3(...cell.min),new THREE.Vector3(...cell.max));
+    return cell;
+  });
+  if(p!==overview.byteLength)throw Error('场景分区索引不一致');
+  THREE.Mesh.prototype.raycast=MeshBVHLib.acceleratedRaycast;
+  const waterMat=new THREE.ShaderMaterial({
+    uniforms:{chart:{value:photo}},
+    vertexShader:'varying vec2 coord;void main(){vec4 w=modelMatrix*vec4(position,1.);coord=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}',
+    fragmentShader:`uniform sampler2D chart;varying vec2 coord;
+    void main(){vec3 c=texture2D(chart,(coord-vec2(6.87,63.8025))/1308.85742+.5).rgb;
+    if(c.b-c.r<.014||c.r>.16)discard;
+    float ripples=sin(coord.y*1.3+sin(coord.x*.7))*sin(coord.x*.15+coord.y*.4);
+    gl_FragColor=vec4(vec3(.145,.265,.265)+ripples*.009,1.);}`
+  });
+  const water=new THREE.Mesh(new THREE.PlaneGeometry(1000,880),waterMat);
+  water.rotation.x=-Math.PI/2;water.position.set(0,-41.5,55);scene.add(water);
+  grid=new THREE.GridHelper(3200,128,0x48584c,0x374238);grid.position.y=-95;scene.add(grid);
+  glReady=hasGL=true;resize3D();home3D();orbitCamera();
+}
+function resize3D(){
+  if(!gl||!camera)return;
+  const w=stage.clientWidth,h=stage.clientHeight;
+  camera.aspect=w/h;camera.updateProjectionMatrix();gl.setSize(w,h,false);dirty=true;
+}
+function homeRadius(){return Math.max(970,930/(camera.aspect||1))}
+function home3D(){
+  if(!glReady)return;
+  arrivalSerial++;awaitingLanding=false;transition=null;view='orbit';camera.fov=39;camera.updateProjectionMatrix();radius=homeRadius();azimuth=.64;pitch=.83;target.set(0,-29,33);syncMode();dirty=true;
+}
+function orbitCamera(){
+  const horizontal=radius*Math.cos(pitch);
+  camera.position.set(target.x+Math.sin(azimuth)*horizontal,target.y+radius*Math.sin(pitch),target.z+Math.cos(azimuth)*horizontal);
+  camera.up.set(0,1,0);camera.lookAt(target);
+}
+function focusPoint(item){
+  if(!glReady)return;
+  if(view!=='orbit')changeView('orbit');
+  transition={from:target.clone(),to:new THREE.Vector3(item.x,topAt(item.x,item.z)-4,item.z),r:radius,end:Math.min(220,homeRadius()*.3),start:performance.now()};
+  dirty=true;
+}
+function mouseZoom(factor){if(isFlat){flatZoom(factor);return}if(view==='orbit'){transition=null;radius=clamp(radius*factor,12,2100)}else{const dir=camera.getWorldDirection(new THREE.Vector3());if(view==='fly')camera.position.addScaledVector(dir,factor<1?8:-8);else{camera.fov=clamp(camera.fov*factor,42,89);camera.updateProjectionMatrix()}}dirty=true}
+function distanceXZ(box,p){
+  return Math.hypot(Math.max(box.min.x-p.x,0,p.x-box.max.x),Math.max(box.min.z-p.z,0,p.z-box.max.z));
+}
+function fetchCell(cell){
+  if(cell.full)return Promise.resolve(true);
+  if(cell.loading)return cell.promise;
+  cell.promise=readCell(cell);return cell.promise;
+}
+async function readCell(cell){
+  activeLoads++;cell.loading=true;
+  try{
+    const buf=await inflated(cell.file),{mesh}=readMesh(new DataView(buf),0);
+    cell.full=mesh;scene.add(mesh);resident.add(cell);
+    if(cell.low)cell.low.visible=false;
+    dirty=true;return true;
+  }catch(e){cell.retry=performance.now()+12000;note('局部模型加载失败，将自动重试')}
+  finally{cell.loading=false;activeLoads--}
+}
+function streamDetail(now){
+  if(awaitingLanding)return;
+  const anchor=view==='orbit'?target:camera.position;
+  const range=view==='orbit'?(radius<330?115:0):115;
+  for(const cell of resident){
+    if(!range||distanceXZ(cell.bbox,anchor)>range+95){
+      scene.remove(cell.full);cell.full.geometry.dispose();cell.full=null;resident.delete(cell);if(cell.low)cell.low.visible=true;dirty=true;
+    }
+  }
+  if(!range)return;
+  const next=tiles.filter(c=>!c.full&&!c.loading&&!(c.retry>now)&&distanceXZ(c.bbox,anchor)<range);
+  next.sort((a,b)=>distanceXZ(a.bbox,anchor)-distanceXZ(b.bbox,anchor));
+  for(const c of next.slice(0,Math.max(0,4-activeLoads)))fetchCell(c);
+}
+const cast=new THREE.Raycaster();cast.firstHitOnly=true;
+function hit(origin,direction,length){
+  cast.set(origin,direction);cast.near=.015;cast.far=length;
+  let best=null;
+  const end=origin.clone().addScaledVector(direction,length);
+  for(const cell of tiles){
+    const mesh=cell.full||cell.low, b=cell.bbox;if(!mesh)continue;
+    if(Math.max(origin.x,end.x)<b.min.x||Math.min(origin.x,end.x)>b.max.x||Math.max(origin.z,end.z)<b.min.z||Math.min(origin.z,end.z)>b.max.z||Math.max(origin.y,end.y)<b.min.y||Math.min(origin.y,end.y)>b.max.y)continue;
+    if(!mesh.geometry.boundsTree)mesh.geometry.boundsTree=new MeshBVHLib.MeshBVH(mesh.geometry,{maxLeafTris:14});
+    rays.length=0;mesh.raycast(cast,rays);if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
+  }
+  return best;
+}
+const down=new THREE.Vector3(0,-1,0);
+function dropAt(x,z,reference=null){
+  const y=reference??topAt(x,z)+2;
+  const floor=hit(new THREE.Vector3(x,y+1,z),down,230);
+  camera.position.set(x,(floor?.point.y??topAt(x,z))+1.7,z);groundVelocity=0;
+}
+function cancelArrival(){arrivalSerial++;if(awaitingLanding){awaitingLanding=false;$('ready').textContent='场景就绪'}}
+async function changeView(mode,arrival=false){
+  if(!glReady)return;
+  if(isFlat)setFlat(false);
+  cancelArrival();const order=arrivalSerial;
+  transition=null;
+  const prev=view;
+  if(mode==='orbit'&&prev!=='orbit'){
+    const dir=camera.getWorldDirection(new THREE.Vector3());target.copy(camera.position).addScaledVector(dir,18);target.y=clamp(target.y,-68,90);radius=100;pitch=.65;azimuth=flyYaw;
+  }else if(mode!=='orbit'){
+    if(prev==='orbit'||arrival){
+      const pt=chosen||{x:8,z:-142}, anchor=chosen?new THREE.Vector3(pt.x,0,pt.z):target;
+      if(mode==='walk'){
+        // Use a nearby outdoor approach instead of dropping onto a landmark roof.
+        const place=chosen||points.find(p=>p.name==='中控桥');
+        const stop=place?.landings[chosen?Number($('landing').value)||0:place.landings.length-1]||approach(pt);
+        awaitingLanding=true;
+        const needed=tiles.filter(c=>distanceXZ(c.bbox,stop)<3);
+        $('ready').textContent='载入漫游起点';
+        const loaded=await Promise.all(needed.map(fetchCell));
+        if(order!==arrivalSerial)return;
+        awaitingLanding=false;$('ready').textContent='场景就绪';
+        if(loaded.some(v=>!v)){note('起点模型尚未载入，请重试');return}
+        dropAt(stop.x,stop.z,stop.y==null?null:stop.y+.3);
+        flyYaw=stop.yaw??Math.atan2(stop.x-pt.x,stop.z-pt.z);flyPitch=-.04;
+      }else{
+        const dist=chosen?48:190;
+        camera.position.set(anchor.x+dist*.7,topAt(anchor.x,anchor.z)+dist*.65,anchor.z+dist);
+        flyYaw=Math.atan2(.7,1);flyPitch=-.48;
+      }
+    }else if(mode==='walk')dropAt(camera.position.x,camera.position.z,camera.position.y);
+    camera.rotation.order='YXZ';camera.rotation.set(flyPitch,flyYaw,0);
+  }
+  view=mode;camera.fov=mode==='orbit'?39:67;camera.updateProjectionMatrix();
+  if(mode!=='orbit')$('selection').hidden=true;
+  syncMode();dirty=true;detailClock=0;
+}
+function approach(p){
+  let best=null;
+  for(const r of [8,15,23,32])for(let k=0;k<12;k++){
+    const x=p.x+r*Math.sin(k*Math.PI/6),z=p.z+r*Math.cos(k*Math.PI/6),y=topAt(x,z);
+    const slope=Math.max(...[[1,0],[-1,0],[0,1],[0,-1]].map(([a,b])=>Math.abs(y-topAt(x+a,z+b))));
+    if(y< -47||slope>1)continue;
+    const cost=(y+47)*.68+r*.18+slope*3;
+    if(!best||cost<best.cost)best={x,z,cost};
+  }
+  return best||p;
+}
+function walkStep(dx,dz,dt){
+  const eye=camera.position, feet=eye.y-1.7;
+  for(const [x,z] of [[dx,0],[0,dz]]){
+    const len=Math.hypot(x,z);if(!len)continue;
+    const dir=new THREE.Vector3(x/len,0,z/len);
+    const blocked=[.46,1.52].some(h=>hit(new THREE.Vector3(eye.x,feet+h,eye.z),dir,len+.23));
+    if(!blocked){eye.x+=x;eye.z+=z}
+  }
+  const floor=hit(new THREE.Vector3(eye.x,feet+.48,eye.z),down,2.4);
+  groundVelocity=Math.max(-18,groundVelocity-14*dt);
+  const next=eye.y+groundVelocity*dt;
+  if(floor&&next<=floor.point.y+1.7){eye.y=floor.point.y+1.7;groundVelocity=0}
+  else eye.y=next;
+  if(eye.y< -100){const p=approach(chosen||{x:8,z:-142});dropAt(p.x,p.z)}
+}
+function advance(dt){
+  if(!awaitingLanding&&!$('dialog').open&&!isFlat&&view!=='orbit'){
+    const f=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
+    const r=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
+    const v=Number(keys.has('KeyE')||keys.has('Space'))-Number(keys.has('KeyQ')||keys.has('ControlLeft'));
+    const speed=(view==='walk'?4.2:24)*(keys.has('ShiftLeft')||keys.has('ShiftRight')?2.8:1)*dt/Math.max(1,Math.hypot(f,r));
+    const dx=(-Math.sin(flyYaw)*f+Math.cos(flyYaw)*r)*speed,dz=(-Math.cos(flyYaw)*f-Math.sin(flyYaw)*r)*speed;
+    if(view==='walk'){
+      const old=camera.position.clone();walkStep(dx,dz,dt);dirty||=old.distanceToSquared(camera.position)>1e-8;
+    }else if(f||r||v){
+      camera.position.x=clamp(camera.position.x+dx,-650,650);camera.position.z=clamp(camera.position.z+dz,-650,700);camera.position.y=clamp(camera.position.y+v*speed,-98,700);dirty=true;
+    }
+  }
+}
+function animate3D(now,dt){
+  if(!glReady||isFlat)return;
+  const steps=view==='walk'?Math.max(1,Math.ceil(dt/.04)):1;
+  for(let i=0;i<steps;i++)advance(dt/steps);
+  if(transition){
+    const t=clamp((now-transition.start)/550,0,1),s=t*t*(3-2*t);
+    target.lerpVectors(transition.from,transition.to,s);radius=THREE.MathUtils.lerp(transition.r,transition.end,s);
+    if(t===1)transition=null;dirty=true;
+  }
+  if(now>detailClock){streamDetail(now);detailClock=now+240}
+  if(!dirty)return;
+  if(view==='orbit')orbitCamera();
+  camera.updateMatrixWorld();gl.render(scene,camera);frameNum++;dirty=false;
+  const xyz=view==='orbit'?target:camera.position;
+  updateHUD(xyz.x,xyz.z,camera.position.y,view==='orbit'?azimuth:flyYaw);
+  layoutPins((p)=>{
+    const v=new THREE.Vector3(p.x,topAt(p.x,p.z)+2,p.z);
+    const dist=camera.position.distanceTo(v);
+    v.project(camera);return {x:(v.x+1)*stage.clientWidth/2,y:(1-v.y)*stage.clientHeight/2,show:v.z>-1&&v.z<1&&(view==='orbit'||dist<135)};
+  },view==='orbit'&&radius<380);
+}

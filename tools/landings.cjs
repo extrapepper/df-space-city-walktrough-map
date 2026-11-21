@@ -1,0 +1,72 @@
+/* Derive landing points from full-resolution geometry, with clearance in a human-sized
+   volume. The heights are mesh surface elevations, not game floor numbers. */
+const fs=require('node:fs'), path=require('node:path'), zlib=require('node:zlib');
+const THREE=require('../dist/vendor/three.min.js');
+const vm=require('node:vm');
+const scope={THREE,console,performance};vm.createContext(scope);
+vm.runInContext(fs.readFileSync(path.resolve(__dirname,'../dist/vendor/bvh.js'),'utf8'),scope);
+const lib=scope.MeshBVHLib;
+const folder=path.resolve(__dirname,'../dist/data');
+const tiles=JSON.parse(fs.readFileSync(path.join(folder,'cells.json')));
+const regions=JSON.parse(fs.readFileSync(path.join(folder,'regions.json'),'utf8').replace(/^\uFEFF/,''));
+const down=new THREE.Vector3(0,-1,0),up=new THREE.Vector3(0,1,0);
+const ray=new THREE.Raycaster();THREE.Mesh.prototype.raycast=lib.acceleratedRaycast;
+function load(tile) {
+  if(tile.mesh)return tile.mesh;
+  const buf=zlib.gunzipSync(fs.readFileSync(path.join(folder,tile.file)));
+  const n=buf.readUInt32LE(0),t=buf.readUInt32LE(4),pos=new Float32Array(3*n),idx=new Uint32Array(t);
+  let p=32;
+  for(let i=0;i<n*3;i++,p+=2){const k=i%3;pos[i]=tile.min[k]+buf.readUInt16LE(p)/65535*(tile.max[k]-tile.min[k])}
+  p+=n;
+  for(let i=0;i<t;i++,p+=n>65535?4:2)idx[i]=n>65535?buf.readUInt32LE(p):buf.readUInt16LE(p);
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setIndex(new THREE.BufferAttribute(idx,1));
+  g.boundsTree=new lib.MeshBVH(g);tile.mesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));return tile.mesh;
+}
+function rays(near,origin,dir,max,first=true){
+  ray.set(origin,dir);ray.near=.02;ray.far=max;ray.firstHitOnly=first;
+  const hits=[];const end=origin.clone().addScaledVector(dir,max);
+  for(const t of near){
+    if((Math.max(origin.x,end.x)<t.min[0])||(Math.min(origin.x,end.x)>t.max[0])||(Math.max(origin.z,end.z)<t.min[2])||(Math.min(origin.z,end.z)>t.max[2]))continue;
+    load(t).raycast(ray,hits);
+  }
+  return hits.sort((a,b)=>a.distance-b.distance);
+}
+function findStops(region){
+  const cx=(region.mapX-668650)/100,cz=(region.mapY+452830)/100;
+  const near=tiles.filter(t=>t.max[0]>cx-50&&t.min[0]<cx+50&&t.max[2]>cz-50&&t.min[2]<cz+50);
+  const cand=[];
+  for(const radius of [0,4,8,13,19,25])for(let a=0;a<(radius?12:1);a++){
+    const x=cx+radius*Math.cos(a*Math.PI/6),z=cz+radius*Math.sin(a*Math.PI/6), dir=new THREE.Vector3();
+    const stack=rays(near,new THREE.Vector3(x,114,z),down,159,false);
+    let last=999;
+    for(const floor of stack){
+      const y=floor.point.y;if(last-y<.3||Math.abs(floor.face.normal.y)<.94)continue;last=y;
+      if(rays(near,new THREE.Vector3(x,y+.03,z),up,1.95).length)continue;
+      let clearance=100, yaw=0,best=0;
+      for(let i=0;i<12;i++){
+        const angle=i*Math.PI/6;
+        dir.set(-Math.sin(angle),0,-Math.cos(angle));
+        const d=rays(near,new THREE.Vector3(x,y+1.4,z),dir,32)[0]?.distance??32;
+        clearance=Math.min(d,clearance);
+        const alignment=(Math.cos(angle)*Math.cos(Math.atan2(x-cx,z-cz))+Math.sin(angle)*Math.sin(Math.atan2(x-cx,z-cz)));
+        const score=d*(.85+.15*alignment);
+        if(score>best){best=score;yaw=angle}
+      }
+      if(clearance<1.5||best<7)continue;
+      const stable=[[1.1,0],[-1.1,0],[0,1.1],[0,-1.1]].every(([dx,dz])=>{
+        const p=new THREE.Vector3(x+dx,y+.38,z+dz), landing=rays(near,p,down,.8)[0];
+        return landing&&Math.abs(landing.point.y-y)<.23&&!rays(near,new THREE.Vector3(p.x,y+.1,p.z),up,1.85).length;
+      });
+      if(stable)cand.push({x,y,z,yaw,score:Math.min(8,clearance)*.5+Math.min(20,best)*.08-radius*.44});
+    }
+  }
+  const levels=[];
+  for(const c of cand.sort((a,b)=>b.score-a.score)){
+    if(!levels.some(s=>Math.abs(s.y-c.y)<3.4))levels.push(c);
+    if(levels.length>=5)break;
+  }
+  for(const c of levels)delete c.score;
+  return levels.sort((a,b)=>a.y-b.y).map(c=>Object.fromEntries(Object.entries(c).map(([k,v])=>[k,+v.toFixed(3)])));
+}
+const out={};for(const r of regions){out[r.name]=findStops(r);console.log(r.name,out[r.name].map(l=>l.y))}
+fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));
