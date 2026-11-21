@@ -39,6 +39,7 @@ float roof(vec2 p){
  return (dot(packedHeight.rg,vec2(255.,65280.))-32768.)*.01;
 }
 ${architecturalSurfaces}
+${labProjection}
 vec3 registeredSurface(vec3 shaded, vec3 normal) {
  if(enableSurvey<.5)return shaded;
  for(int i=0;i<SURVEY_COUNT;i++){
@@ -92,6 +93,7 @@ void main(){
  float noise=fract(sin(dot(floor(world*19.),vec3(.19,3.19,7.41)))*471.37);
  base+=.016*(noise-.5);
  base=registeredSurface(base,n);
+ base=labFinish(base,world,n);
  float fall=smoothstep(360.,650.,length((world.xz-vec2(0.,22.))*vec2(1.18,.9)));
  base=mix(base,vec3(.115,.153,.135),fall*.89);
  float haze=submerged*(1.-exp(-.032*distance(cameraPosition,world)));
@@ -130,7 +132,7 @@ async function initialize3D(){
   gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
   target=new THREE.Vector3(0,-25,24);
-  const [field,manifest,overview,water,appearance]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz')]);
+  const [field,manifest,overview,water,appearance,cabins]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz'),jsonFile('lab-equipment.json')]);
   const finishes=JSON.parse(new TextDecoder().decode(appearance));
   const photo=new THREE.Texture(atlas);
   photo.flipY=false;photo.needsUpdate=true;
@@ -140,7 +142,8 @@ async function initialize3D(){
   const texture=new THREE.DataTexture(rgba,1024,1024);texture.needsUpdate=true;
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
   material.defines={SURVEY_COUNT:1};
-  architecturalMaterials=makeArchitecturalMaterials(material);
+  architecturalMaterials=makeArchitecturalMaterials(material,cabins);
+  Object.assign(material.uniforms,labUniforms);
   Object.assign(material.uniforms,{
     surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},
     surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
@@ -149,6 +152,7 @@ async function initialize3D(){
   });
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
+  loadLabFinish().catch(error=>console.warn('浮力室材质加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     cell.surfaces=finishes[cell.file];

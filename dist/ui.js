@@ -51,10 +51,15 @@ function filterPlaces(){
   if(!root.children.length){const p=document.createElement('p');p.className='subdued';p.textContent='未找到匹配的地标';root.append(p)}
 }
 $('search').oninput=filterPlaces;
-const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay','码头区':'dock','总裁室':'ceo'};
+const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay','码头区':'dock','总裁室':'ceo','浮力室':'buoyancy'};
 $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
+  if(key==='buoyancy'&&chosen.landings[Number($('landing').value)]?.label==='深潜池下层'){
+    setDialog('浮力室 · 深潜池下层','<img class="reference" src="data/buoyancy-lower.webp" alt="从池沿俯看下层舱体和圆形深井"><p>《三角洲行动》官方 2024 年航天基地画面。</p>');
+    const go=document.createElement('button');go.className='visit-photo';go.textContent='从深潜池下层开始步行';
+    go.onclick=()=>{$('dialog').close();enterWalk(true)};$('dialog-body').append(go);return;
+  }
   if(key==='ceo'&&chosen.landings[Number($('landing').value)]?.label==='雕塑前厅'){
     setDialog('雕塑前厅 · 游戏画面','<img class="reference sculpture-reference" alt="总裁室前厅的金属雕塑" src="data/sculpture-reference.webp"><p>《三角洲行动》官方蝶变赛季画面。</p>');
     const go=document.createElement('button');go.className='visit-photo';go.textContent='从雕塑前厅开始步行';
@@ -62,7 +67,7 @@ $('reference-photo').onclick=()=>{
   }
   const pose=surveyViews.get(key);
   const filename=key==='launch'&&pose?'overview-photo':key;
-  const credit=key==='dock'?'画面来自《三角洲行动》官方蝶变赛季介绍。':'画面来自《三角洲行动》官方航天基地介绍。';
+  const credit=['dock','buoyancy'].includes(key)?'画面来自《三角洲行动》官方蝶变赛季介绍。':'画面来自《三角洲行动》官方航天基地介绍。';
   setDialog(chosen.name+' · 游戏画面','<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+filename+'.webp"><p>'+credit+'</p>');
   if(!pose)return;
   const button=document.createElement('button');

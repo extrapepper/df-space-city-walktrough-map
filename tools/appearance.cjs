@@ -8,6 +8,8 @@ const windowFaces = new Map([
 // These sixteen faces sit 4–15 cm behind the same two curved dormitory bays.
 // The remaining faces of hull 818 also describe opaque parts of the building.
 const dormWindowBacking=[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17];
+const cabins=require('../dist/data/lab-equipment.json');
+const cabinFinishes=new Map(cabins.map((c,index)=>[c.instance,{role:4+index,hull:c.hull}]));
 // Visually inspected low/high shape pairs. Bounds alone also match unrelated objects.
 const twins = new Map([
   [9,[8]], [17,[16]], [634,[633,1462]], [255,[254,628,1096]],
@@ -29,6 +31,8 @@ function identifySurfaces(parts) {
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;
     if (part.id === 1022) part.finish = 3;
+    const cabin=cabinFinishes.get(part.instance);
+    if(cabin && cabin.hull===part.id)part.finish=cabin.role;
     const candidates = twins.get(part.id);
     if (!candidates) continue;
     const reach = part.id === 6 ? 5 : 2;

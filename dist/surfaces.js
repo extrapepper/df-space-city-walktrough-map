@@ -1,6 +1,6 @@
 'use strict';
 let architecturalMaterials;
-function makeArchitecturalMaterials(base){
+function makeArchitecturalMaterials(base,cabins){
   const vertexShader=`varying vec3 sitePosition;
     void main(){sitePosition=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
   const shader=(fragmentShader,transparent=false)=>new THREE.ShaderMaterial({
@@ -50,7 +50,7 @@ function makeArchitecturalMaterials(base){
     }`);
   steel.uniforms={metalPhoto:{value:null},photoEye:{value:new THREE.Vector3()},photoAxes:{value:new THREE.Matrix3()},
     focal:{value:new THREE.Vector2()},principal:{value:new THREE.Vector2()},depthScale:{value:new THREE.Vector2()},photoReady:{value:0}};
-  return [base,glass,collider,steel];
+  return [base,glass,collider,steel,...cabins.map(makeCabinMaterial)];
 }
 async function registerSteelPhoto(p){
   const photo=await new THREE.TextureLoader().loadAsync('data/sculpture-finish.webp');
@@ -62,7 +62,8 @@ async function registerSteelPhoto(p){
 }
 // Collect contiguous draw groups while retaining every survey triangle for BVH queries.
 function applySurfaceRuns(geo,index,runs){
-  const sizes=[index.length,0,0,0];
+  const sizes=new Array(architecturalMaterials.length).fill(0);
+  sizes[0]=index.length;
   for(const [,count,role] of runs){sizes[role]+=count*3;sizes[0]-=count*3}
   const result=new index.constructor(index.length),cursor=[];
   let start=0;
@@ -191,6 +192,23 @@ vec3 finishedSurface(vec3 base,vec3 n,float exposed,vec3 ortho){
   vec3 glossy=normalize(light+normalize(cameraPosition-world));
   float spec=pow(max(0.,dot(normal,glossy)),25.)*(tile==2.||tile==3.?.09:.025);
   color=color*diffuse+spec;
+  if(world.x> -77.8 && world.x< -27.2 && world.z> -60.9 && world.z< -17.1){
+    // East gantry deck and the stencilled strip on the opposite rim.
+    if(horizontal && n.y>.8 && abs(world.y+29.09)<.13 && world.x> -45.03 && world.x< -32.5 && world.z< -22.5){
+      color=vec3(.145,.164,.188)*mix(.84,1.16,clamp(grain*.6,0.,1.))*diffuse;
+      float stripe=1.-smoothstep(.08,.125,abs(world.x+42.53));
+      float hatch=step(.48,fract((world.z+world.x)*3.8));
+      color=mix(color,mix(vec3(.10,.11,.12),vec3(.65,.52,.19),hatch),stripe*.85);
+    }else if(horizontal && abs(world.y+29.14)<.12 && abs(world.x+72.08)<1.02 && world.z> -45.15 && world.z< -29.5){
+      color=(category<3.5?vec3(.49,.29,.15):vec3(.79,.80,.77))*diffuse;
+    }
+    if(!horizontal && abs(world.z+26.20)<.64 && world.x< -43.8 && world.y> -23.25 && world.y< -19.8){
+      color=mix(color,vec3(.085,.40,.48)*diffuse,.79);
+    }
+    if(!horizontal && world.y< -37. && world.y> -41.12 && world.x> -52.3 && world.x< -47.6 && world.z> -39. && world.z< -25.1){
+      color=mix(color,vec3(.28,.32,.34)*diffuse,.74);
+    }
+  }
   return mix(base,color,(1.-smoothstep(235.,490.,dist))*(terrain?.8:.95));
 }`;
 async function loadFinishes(){

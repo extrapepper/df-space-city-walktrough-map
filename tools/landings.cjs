@@ -104,6 +104,12 @@ function viewStop({label,x,z,probeY,yaw,pitch}){
 const out={};for(const r of regions){
   out[r.name]=buildStops(r);
   if(views[r.name])out[r.name].push(viewStop(views[r.name]));
+  if(r.name==='浮力室'){
+    out[r.name].unshift(
+      viewStop({label:'池沿吊架',x:-43,z:-52,probeY:-27,yaw:2.18265,pitch:-.1274}),
+      viewStop({label:'深潜池下层',x:-56,z:-39,probeY:-39,yaw:-2.1588,pitch:.19})
+    );
+  }
   console.log(r.name,out[r.name].map(l=>l.y));
 }
 fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));
