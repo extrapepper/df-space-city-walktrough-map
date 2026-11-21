@@ -14,15 +14,15 @@ fly:'<path d="m21 3-6 18-4-8-8-4zm-10 10L21 3"/>',walk:'<circle cx="14" cy="4" r
 document.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+shapes[el.dataset.icon]+'</svg>');
 const groups=[
   {name:'北部园区',places:[['宿舍区','西侧的宿舍楼群。向东可到中控区。'],['中控区','从中控楼向南，经中控桥进入核心区。'],['中控桥','连接北侧中控区和南侧核心区的桥梁。'],['工业区','基地东侧的工业厂房，南侧邻近罐装区。'],['罐装区','沿东侧弧形道路辨认成组的储罐。']]},
-  {name:'核心区',places:[['离心机室','核心区西南侧的实验楼，北面是浮力室。'],['浮力室','核心区西北侧，与东侧的蓝室隔道相望。'],['蓝室','位于核心区东北侧，黑室在它的南面。'],['黑室','核心区东南侧的研究建筑。'],['总裁室','核心区楼层地标，标记表示平面位置。'],['中心花园','核心区南侧的开放空间。']]},
-  {name:'南部设施',places:[['水平试车场','沿南部栈桥查看东侧的试车设施。'],['发射区','基地西南方向的发射设施，与水平试车场隔水相望。']]}
+  {name:'核心区',places:[['离心机室','核心区西南侧的实验楼，北面是浮力室。'],['浮力室','核心区西北侧，与东侧的蓝室隔道相望。'],['蓝室','位于核心区东北侧，黑室在它的南面。'],['黑室','核心区东南侧的研究建筑。'],['总裁室','位于核心区上层。默认起点在办公室层，靠近官方地图标记的电脑位置。'],['中心花园','核心区南侧的开放空间。']]},
+  {name:'南部设施',places:[['水平试车场','沿南部栈桥查看东侧的试车设施。'],['发射区','基地西南方向的发射设施，与水平试车场隔水相望。'],['码头区','核心区西南侧的临水建筑。可从不同楼层出发，也可以在岸前下水。']]}
 ];
 let points=[], chosen=null, view='orbit', isFlat=false, ready=false, hasGL=false, toastTimer;
-const important=new Set(['宿舍区','中控区','工业区','罐装区','蓝室','中心花园','水平试车场','发射区']);
+const important=new Set(['宿舍区','中控区','工业区','罐装区','蓝室','中心花园','水平试车场','发射区','码头区']);
 function note(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,2700)}
 function setDialog(title,html){$('dialog').querySelector('h2').textContent=title;$('dialog-body').innerHTML=html;$('dialog').showModal()}
-$('guide').onclick=()=>setDialog('操作指南','<dl><dt>环绕沙盘</dt><dd>拖动旋转，右键拖动平移，滚轮缩放。</dd><dt>平面地图</dt><dd>拖动平移，滚轮或双指缩放。</dd><dt>步行与飞行</dt><dd>W A S D 或方向键移动，拖动环顾，Shift 加速。飞行时 E / Q 升降。</dd><dt>触屏漫游</dt><dd>用方向按钮移动，在地图上拖动转向。</dd><dt>返回全图</dt><dd>按 R 或使用右侧复位按钮。</dd></dl>');
-$('source').onclick=()=>setDialog('地图资料','<p>建筑和地形来自公开的航天基地物理场景，坐标从厘米换算为米。远景采用减面网格，进入区域后加载原精度几何。</p><p>13 个地标和俯视影像来自腾讯地图工具。地标平面位置通过建筑轮廓对齐。发射区、中控楼、工业区和水平试车场的部分外表面采用校准后的官方实景照片。五栋核心区建筑可以对照 2025 年的室内全景。官方在蝶变赛季开放了码头和部分水域，并调整了总裁室。这些版本差异尚未逐项核验。</p><p><a href="https://df.qq.com/cp/a20240729directory/?map=htjd" target="_blank" rel="noreferrer">腾讯官方地图工具</a> · <a href="https://github.com/QH190311/delta-force-3d-map/tree/fc335ace5e225c8dcae107b8e68cdee3aa61e572" target="_blank" rel="noreferrer">场景数据</a> · <a href="https://www.taptap.cn/moment/560580545478659238" target="_blank" rel="noreferrer">实景照片</a> · <a href="https://www.playdeltaforce.com/season08/en/" target="_blank" rel="noreferrer">航天基地 2.0 更新</a></p>');
+$('guide').onclick=()=>setDialog('操作指南','<dl><dt>环绕沙盘</dt><dd>拖动旋转，右键拖动平移，滚轮缩放。</dd><dt>平面地图</dt><dd>拖动平移，滚轮或双指缩放。</dd><dt>步行与飞行</dt><dd>W A S D 或方向键移动，拖动环顾，Shift 加速。飞行时 E / Q 升降。进入港湾深水后可游泳，按 Q 下潜、E 上浮。</dd><dt>触屏漫游</dt><dd>用方向按钮移动，在地图上拖动转向。</dd><dt>返回全图</dt><dd>按 R 或使用右侧复位按钮。</dd></dl>');
+$('source').onclick=()=>setDialog('地图资料','<p>建筑和地形来自公开的航天基地物理场景，坐标从厘米换算为米。远景采用减面网格，进入区域后加载原精度几何。</p><p>地图包含 13 个官方区域标签，以及用官方点位单独定位的码头区。码头的三层起点已与楼板核对，岸线依据官方 2.0 画面估算。七个地标的部分外表面采用实景贴图，包括宿舍楼、中控桥和码头临水立面。五栋核心区建筑附有 2025 年的室内全景。新版总裁室通道和动态注水状态仍待核验。</p><p><a href="https://df.qq.com/cp/a20240729directory/?map=htjd" target="_blank" rel="noreferrer">腾讯官方地图工具</a> · <a href="https://github.com/QH190311/delta-force-3d-map/tree/fc335ace5e225c8dcae107b8e68cdee3aa61e572" target="_blank" rel="noreferrer">场景数据</a> · <a href="https://www.taptap.cn/moment/560580545478659238" target="_blank" rel="noreferrer">实景照片</a> · <a href="https://www.playdeltaforce.com/season08/en/" target="_blank" rel="noreferrer">航天基地 2.0 更新</a></p>');
 $('close-dialog').onclick=()=>$('dialog').close();
 $('dialog').addEventListener('click',e=>{if(e.target===$('dialog'))$('dialog').close()});
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch{note('当前浏览器不支持全屏')}};
@@ -35,6 +35,7 @@ function initPlaces(data, landings){
     const pin=document.createElement('button');
     pin.className='pin';pin.innerHTML='<b>'+item.id+'</b>'+name;pin.hidden=true;pin.onclick=()=>selectPlace(item);item.pin=pin;$('markers').append(pin);points.push(item);
   }
+  $('place-count').textContent=points.length+' 个地标';
   filterPlaces();
 }
 function filterPlaces(){
@@ -50,13 +51,14 @@ function filterPlaces(){
   if(!root.children.length){const p=document.createElement('p');p.className='subdued';p.textContent='未找到匹配的地标';root.append(p)}
 }
 $('search').oninput=filterPlaces;
-const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay'};
+const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay','码头区':'dock','总裁室':'ceo'};
 $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
   const pose=surveyViews.get(key);
   const filename=key==='launch'&&pose?'overview-photo':key;
-  setDialog(chosen.name+' · 游戏画面','<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+filename+'.webp"><p>画面来自《三角洲行动》官方航天基地介绍。</p>');
+  const credit=key==='dock'?'画面来自《三角洲行动》官方蝶变赛季介绍。':'画面来自《三角洲行动》官方航天基地介绍。';
+  setDialog(chosen.name+' · 游戏画面','<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+filename+'.webp"><p>'+credit+'</p>');
   if(!pose)return;
   const button=document.createElement('button');
   button.className='visit-photo';button.textContent='从这个视角自由飞行';
@@ -68,7 +70,7 @@ function selectPlace(item) {
   cancelArrival();chosen=item;
   $('show-room-views').hidden=!['离心机室','浮力室','蓝室','黑室','总裁室'].includes(item.name);
   $('reference-photo').hidden=!photos[item.name];
-  $('landing').replaceChildren(...item.landings.map((spot,index)=>new Option('高度 '+spot.y.toFixed(1)+' m',String(index))));
+  $('landing').replaceChildren(...item.landings.map((spot,index)=>new Option((spot.label?spot.label+' · ':'高度 ')+spot.y.toFixed(1)+' m',String(index))));
   $('landing-label').hidden=!glReady||!item.landings.length;
   $('sidebar').classList.remove('open');
   $('detail-group').textContent=item.id+' / '+item.group;$('detail-name').textContent=item.name;$('detail-text').textContent=item.description;$('selection').hidden=false;
@@ -114,7 +116,9 @@ function showRoomView(){
   $('room-screen').replaceChildren(frame);
 }
 $('room-stop').onchange=showRoomView;
-$('close-rooms').onclick=()=>$('room-dialog').close();
-$('room-dialog').addEventListener('close',()=>{
+function releaseRoomView(){
+  if($('room-dialog').open)return;
   roomOpenRequest++;$('room-screen').replaceChildren();keys.clear();dirty=true;
-});
+}
+$('close-rooms').onclick=()=>{$('room-dialog').close();releaseRoomView()};
+$('room-dialog').addEventListener('close',releaseRoomView);

@@ -47,7 +47,11 @@
   {
     "name": "总裁室",
     "mapX": 668804.5,
-    "mapY": -451270.4375
+    "mapY": -451270.4375,
+    "anchors": [
+      {"label":"办公室层","mapX":668919.3,"mapY":-451097,"mapHeight":-19802.5}
+    ],
+    "includeOtherLevels": true
   },
   {
     "name": "中心花园",
@@ -63,5 +67,16 @@
     "name": "发射区",
     "mapX": 658622.875,
     "mapY": -418851.59375
+  },
+  {
+    "name": "码头区",
+    "mapX": 664558,
+    "mapY": -440413,
+    "anchors": [
+      {"label":"东侧上层","mapX":664558,"mapY":-440413,"mapHeight":-21364},
+      {"label":"东侧中层","mapX":665443,"mapY":-439261,"mapHeight":-21859},
+      {"label":"西侧下层","mapX":658115,"mapY":-440439,"mapHeight":-22350.2},
+      {"label":"码头前水面","water":true,"x":-75,"z":165,"yaw":-0.45}
+    ]
   }
 ]

@@ -28,6 +28,7 @@ uniform vec2 surveyFocal[SURVEY_COUNT];
 uniform vec4 surveyBounds[SURVEY_COUNT];
 uniform vec4 surveyRect[SURVEY_COUNT];
 uniform float enableSurvey;
+uniform float submerged;
 uniform float contours;
 uniform vec3 colors[8];
 varying vec3 world;
@@ -88,7 +89,9 @@ void main(){
  base+=.016*(noise-.5);
  base=registeredSurface(base,n);
  float fall=smoothstep(360.,650.,length((world.xz-vec2(0.,22.))*vec2(1.18,.9)));
- gl_FragColor=vec4(mix(base,vec3(.115,.153,.135),fall*.89),1.);
+ base=mix(base,vec3(.115,.153,.135),fall*.89);
+ float haze=submerged*(1.-exp(-.032*distance(cameraPosition,world)));
+ gl_FragColor=vec4(mix(base,vec3(.075,.205,.205),haze),1.);
 }`;
 async function inflated(file) {
   const reply=await fetch('data/'+file);
@@ -122,7 +125,7 @@ async function initialize3D(){
   gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
   target=new THREE.Vector3(0,-25,24);
-  const [field,manifest,overview]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz')]);
+  const [field,manifest,overview,water]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz')]);
   const photo=new THREE.Texture(atlas);
   photo.flipY=false;photo.needsUpdate=true;
   heights=new Int16Array(field);
@@ -135,7 +138,7 @@ async function initialize3D(){
     surveyPhotos:{value:null},surveyDepth:{value:null},
     surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
     surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
-    surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
+    surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0},submerged:{value:0}
   });
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   const view=new DataView(overview);let p=0;
@@ -146,17 +149,7 @@ async function initialize3D(){
   });
   if(p!==overview.byteLength)throw Error('场景分区索引不一致');
   THREE.Mesh.prototype.raycast=MeshBVHLib.acceleratedRaycast;
-  const waterMat=new THREE.ShaderMaterial({
-    uniforms:{chart:{value:photo}},
-    vertexShader:'varying vec2 coord;void main(){vec4 w=modelMatrix*vec4(position,1.);coord=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}',
-    fragmentShader:`uniform sampler2D chart;varying vec2 coord;
-    void main(){vec3 c=texture2D(chart,(coord-vec2(6.87,63.8025))/1308.85742+.5).rgb;
-    if(c.b-c.r<.014||c.r>.16)discard;
-    float ripples=sin(coord.y*1.3+sin(coord.x*.7))*sin(coord.x*.15+coord.y*.4);
-    gl_FragColor=vec4(vec3(.145,.265,.265)+ripples*.009,1.);}`
-  });
-  const water=new THREE.Mesh(new THREE.PlaneGeometry(1000,880),waterMat);
-  water.rotation.x=-Math.PI/2;water.position.set(0,-41.5,55);scene.add(water);
+  installHarbor(water);
   grid=new THREE.GridHelper(3200,128,0x48584c,0x374238);grid.position.y=-95;scene.add(grid);
   glReady=hasGL=true;resize3D();home3D();orbitCamera();
 }
@@ -292,14 +285,24 @@ async function changeView(mode,arrival=false){
         if(order!==arrivalSerial)return;
         awaitingLanding=false;$('ready').textContent='场景就绪';
         if(loaded.some(v=>!v)){note('起点模型尚未载入，请重试');return}
-        dropAt(stop.x,stop.z,stop.y==null?null:stop.y+.3);
+        if(stop.water){camera.position.set(stop.x,harbor.level+.28,stop.z);groundVelocity=0}
+        else dropAt(stop.x,stop.z,stop.y==null?null:stop.y+.3);
         flyYaw=stop.yaw??Math.atan2(stop.x-pt.x,stop.z-pt.z);flyPitch=-.04;
       }else{
         const dist=chosen?48:190;
         camera.position.set(anchor.x+dist*.7,topAt(anchor.x,anchor.z)+dist*.65,anchor.z+dist);
         flyYaw=Math.atan2(.7,1);flyPitch=-.48;
       }
-    }else if(mode==='walk')dropAt(camera.position.x,camera.position.z,camera.position.y);
+    }else if(mode==='walk'){
+      if(overHarbor(camera.position.x,camera.position.z)){
+        groundVelocity=0;
+        if(camera.position.y>harbor.level){
+          const floor=hit(camera.position,down,camera.position.y-harbor.level+.12);
+          if(floor)dropAt(camera.position.x,camera.position.z,camera.position.y);
+          else camera.position.y=harbor.level+.28;
+        }
+      }else dropAt(camera.position.x,camera.position.z,camera.position.y);
+    }
     camera.rotation.order='YXZ';camera.rotation.set(flyPitch,flyYaw,0);
   }
   view=mode;camera.fov=mode==='orbit'?39:67;camera.updateProjectionMatrix();
@@ -317,14 +320,18 @@ function approach(p){
   }
   return best||p;
 }
-function walkStep(dx,dz,dt){
-  const eye=camera.position, feet=eye.y-1.7;
+function slideHorizontal(dx,dz,base,offsets){
+  const eye=camera.position;
   for(const [x,z] of [[dx,0],[0,dz]]){
     const len=Math.hypot(x,z);if(!len)continue;
     const dir=new THREE.Vector3(x/len,0,z/len);
-    const blocked=[.46,1.52].some(h=>hit(new THREE.Vector3(eye.x,feet+h,eye.z),dir,len+.23));
+    const blocked=offsets.some(h=>hit(new THREE.Vector3(eye.x,base+h,eye.z),dir,len+.23));
     if(!blocked){eye.x+=x;eye.z+=z}
   }
+}
+function walkStep(dx,dz,dt){
+  const eye=camera.position, feet=eye.y-1.7;
+  slideHorizontal(dx,dz,feet,[.46,1.52]);
   const floor=hit(new THREE.Vector3(eye.x,feet+.48,eye.z),down,2.4);
   groundVelocity=Math.max(-18,groundVelocity-14*dt);
   const next=eye.y+groundVelocity*dt;
@@ -337,10 +344,13 @@ function advance(dt){
     const f=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
     const r=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
     const v=Number(keys.has('KeyE')||keys.has('Space'))-Number(keys.has('KeyQ')||keys.has('ControlLeft'));
-    const speed=(view==='walk'?4.2:24)*(keys.has('ShiftLeft')||keys.has('ShiftRight')?2.8:1)*dt/Math.max(1,Math.hypot(f,r));
+    const walking=view==='walk',rate=walking?(swimming?3.2:4.2):24;
+    const speed=rate*(keys.has('ShiftLeft')||keys.has('ShiftRight')?2.8:1)*dt/Math.max(1,Math.hypot(f,r));
     const dx=(-Math.sin(flyYaw)*f+Math.cos(flyYaw)*r)*speed,dz=(-Math.cos(flyYaw)*f-Math.sin(flyYaw)*r)*speed;
     if(view==='walk'){
-      const old=camera.position.clone();walkStep(dx,dz,dt);dirty||=old.distanceToSquared(camera.position)>1e-8;
+      const old=camera.position.clone();
+      if(swimming)swimStep(dx,dz,v,dt);else walkStep(dx,dz,dt);
+      dirty||=old.distanceToSquared(camera.position)>1e-8;
     }else if(f||r||v){
       camera.position.x=clamp(camera.position.x+dx,-650,650);camera.position.z=clamp(camera.position.z+dz,-650,700);camera.position.y=clamp(camera.position.y+v*speed,-98,700);dirty=true;
     }
@@ -349,7 +359,7 @@ function advance(dt){
 function animate3D(now,dt){
   if(!glReady||isFlat)return;
   const steps=view==='walk'?Math.max(1,Math.ceil(dt/.04)):1;
-  for(let i=0;i<steps;i++)advance(dt/steps);
+  for(let i=0;i<steps;i++){if(view==='walk')updateImmersion();advance(dt/steps)}
   if(transition){
     const t=clamp((now-transition.start)/550,0,1),s=t*t*(3-2*t);
     target.lerpVectors(transition.from,transition.to,s);radius=THREE.MathUtils.lerp(transition.r,transition.end,s);
@@ -358,6 +368,7 @@ function animate3D(now,dt){
   if(now>detailClock){streamDetail(now);detailClock=now+240}
   if(!dirty)return;
   if(view==='orbit')orbitCamera();
+  updateImmersion();
   camera.updateMatrixWorld();gl.render(scene,camera);frameNum++;dirty=false;
   const xyz=view==='orbit'?target:camera.position;
   updateHUD(xyz.x,xyz.z,camera.position.y,view==='orbit'?azimuth:flyYaw);

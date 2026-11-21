@@ -31,7 +31,7 @@ function rays(near,origin,dir,max,first=true){
   }
   return hits.sort((a,b)=>a.distance-b.distance);
 }
-function findStops(region){
+function findStops(region,requiredHeight=null){
   const cx=(region.mapX-668650)/100,cz=(region.mapY+452830)/100;
   const near=tiles.filter(t=>t.max[0]>cx-50&&t.min[0]<cx+50&&t.max[2]>cz-50&&t.min[2]<cz+50);
   const cand=[];
@@ -41,6 +41,7 @@ function findStops(region){
     let last=999;
     for(const floor of stack){
       const y=floor.point.y;if(last-y<.3||Math.abs(floor.face.normal.y)<.94)continue;last=y;
+      if(requiredHeight!==null&&Math.abs(y-requiredHeight)>.32)continue;
       if(rays(near,new THREE.Vector3(x,y+.03,z),up,1.95).length)continue;
       let clearance=100, yaw=0,best=0;
       for(let i=0;i<12;i++){
@@ -68,5 +69,23 @@ function findStops(region){
   for(const c of levels)delete c.score;
   return levels.sort((a,b)=>a.y-b.y).map(c=>Object.fromEntries(Object.entries(c).map(([k,v])=>[k,+v.toFixed(3)])));
 }
-const out={};for(const r of regions){out[r.name]=findStops(r);console.log(r.name,out[r.name].map(l=>l.y))}
+function buildStops(region){
+  if(!region.anchors)return findStops(region);
+  const confirmed=region.anchors.map(anchor=>{
+    if(anchor.water){
+      const b=zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')));
+      const size=b.readUInt32LE(),origin=b.readFloatLE(4),spacing=b.readFloatLE(8);
+      const i=Math.floor((anchor.z-origin)/spacing)*size+Math.floor((anchor.x-origin)/spacing);
+      if(!b[16+i])throw Error('Water start falls outside the harbor');
+      return {...anchor,y:b.readFloatLE(12)};
+    }
+    const wanted=anchor.mapHeight/100+190;
+    const stop=findStops(anchor,wanted)[0];
+    if(!stop)throw Error('Could not place a walker at '+anchor.label);
+    return {...stop,label:anchor.label};
+  });
+  if(!region.includeOtherLevels)return confirmed;
+  return confirmed.concat(findStops(region).filter(stop=>confirmed.every(s=>Math.abs(s.y-stop.y)>=3.4)));
+}
+const out={};for(const r of regions){out[r.name]=buildStops(r);console.log(r.name,out[r.name].map(l=>l.y))}
 fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));

@@ -10,9 +10,9 @@ function syncMode(){
   $('locator').hidden=isFlat||view==='orbit';
   stage.classList.toggle('immersive',!isFlat&&view!=='orbit');
   if(grid)grid.visible=view==='orbit';
-  $('navigation').hidden=isFlat;$('touchpad').hidden=isFlat||view==='orbit'||!matchMedia('(pointer: coarse)').matches;$('vertical').hidden=view!=='fly';
-  $('view-label').textContent=isFlat?'俯视全图':view==='walk'?'步行探索':view==='fly'?'自由飞行':chosen?'区域环绕':'全域总览';
-  $('hint').textContent=isFlat?'拖动平移 · 滚轮缩放':view==='orbit'?'拖动旋转 · 滚轮缩放':view==='fly'?'WASD 移动 · E / Q 升降':'WASD 移动 · 拖动环顾';
+  $('navigation').hidden=isFlat;$('touchpad').hidden=isFlat||view==='orbit'||!matchMedia('(pointer: coarse)').matches;$('vertical').hidden=view!=='fly'&&!swimming;
+  $('view-label').textContent=isFlat?'俯视全图':view==='walk'?(swimming?'水中探索':'步行探索'):view==='fly'?'自由飞行':chosen?'区域环绕':'全域总览';
+  $('hint').textContent=isFlat?'拖动平移 · 滚轮缩放':view==='orbit'?'拖动旋转 · 滚轮缩放':view==='fly'?'WASD 移动 · E / Q 升降':swimming?'WASD 游动 · E 上浮 · Q 下潜':'WASD 移动 · 拖动环顾';
 }
 function updateHUD(x,z,h,yaw){
   const deg=(360-yaw/DEG%360)%360;
