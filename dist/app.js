@@ -45,8 +45,9 @@ function syncMode(){
   stage.classList.toggle('immersive',!isFlat&&view!=='orbit');
   if(grid)grid.visible=view==='orbit';
   $('navigation').hidden=isFlat;$('touchpad').hidden=isFlat||view==='orbit'||!matchMedia('(pointer: coarse)').matches;$('vertical').hidden=view!=='fly'&&!swimming;
-  $('view-label').textContent=isFlat?'俯视全图':view==='walk'?(swimming?'水中探索':'步行探索'):view==='fly'?'自由飞行':chosen?'区域环绕':'全域总览';
+  $('view-label').textContent=isFlat?'俯视全图':view==='walk'?(climbing?'正在攀梯':swimming?'水中探索':crouched?'蹲姿探索':'步行探索'):view==='fly'?'自由飞行':chosen?'区域环绕':'全域总览';
   $('touch-jump').hidden=view!=='walk'||swimming||!!climbing;
+  $('touch-crouch').hidden=$('touch-jump').hidden;$('touch-crouch').setAttribute('aria-pressed',String(crouched));
   const look=document.pointerLockElement===viewport||mouseLookFallback?'移动鼠标环顾':'点击场景启用鼠标环顾';
   $('hint').textContent=isFlat?'拖动平移 · 滚轮缩放':view==='orbit'?'拖动旋转 · 滚轮缩放':view==='fly'?'WASD 移动 · E / Q 升降 · M 大地图':swimming?'WASD 游动 · E 上浮 · Q 下潜 · M 大地图':finePointer.matches?look+' · 空格跳跃 · Shift 奔跑 · M 大地图':'拖动环顾 · 轻触小地图查看全图';
   if(climbing&&view==='walk'&&!isFlat)$('hint').textContent='前进上梯 · 后退下梯 · F 松开';
@@ -121,6 +122,8 @@ $('plus').onclick=()=>mouseZoom(.78);$('minus').onclick=()=>mouseZoom(1.28);$('r
 for(const id of ['orbit','fly'])$(id).onclick=()=>changeView(id);
 $('walk').onclick=()=>enterWalk(false);
 $('enter-here').onclick=()=>enterWalk(true);
+$('flood-action').onclick=useInteraction;
+$('touch-crouch').onclick=toggleCrouch;
 $('labels-on').onchange=()=>{
   $('markers').hidden=!$('labels-on').checked;
   dirty=true;drawFlat();
@@ -173,9 +176,12 @@ for(const b of document.querySelectorAll('[data-key]')){
   b.onpointerup=b.onpointercancel=b.onlostpointercapture=()=>keys.delete(b.dataset.key);
 }
 addEventListener('keydown',e=>{
-  if($('dialog').open||$('room-dialog').open||e.ctrlKey&&e.code!=='ControlLeft'||e.metaKey||e.altKey)return;
+  if($('dialog').open||$('room-dialog').open||e.metaKey||e.altKey)return;
   if(e.target.closest?.('input,select,textarea,[contenteditable="true"]')){if(e.key==='Escape')e.target.blur();return}
-  if(e.code==='KeyF'&&!e.repeat&&!isFlat&&!routeMapOpen&&view==='walk'){e.preventDefault();usePoolInteraction();return}
+  const moveKey=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyE','KeyQ','ShiftLeft','ShiftRight','ControlLeft','ControlRight'].includes(e.code);
+  if(e.ctrlKey&&(!moveKey||isFlat||view==='orbit'))return;
+  if(e.code==='KeyC'&&view==='walk'&&!isFlat){e.preventDefault();if(!e.repeat)toggleCrouch();return}
+  if(e.code==='KeyF'&&!e.repeat&&!isFlat&&!routeMapOpen&&view==='walk'){e.preventDefault();useInteraction();return}
   if(e.code==='KeyM'&&glReady&&!isFlat&&view!=='orbit'){
     e.preventDefault();if(!e.repeat){if(routeMapOpen)closeRouteMap(true);else openRouteMap()}return;
   }
@@ -188,7 +194,7 @@ addEventListener('keydown',e=>{
     $('sidebar').classList.remove('open');clearPlace();if(!isFlat&&glReady)changeView('orbit');
   }
   if(e.code==='Space'&&!e.repeat&&!isFlat&&view==='walk'&&!swimming)jumpPending=true;
-  if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyE','KeyQ','ShiftLeft','ShiftRight','ControlLeft'].includes(e.code)&&!isFlat&&view!=='orbit'){e.preventDefault();keys.add(e.code)}
+  if(moveKey&&!isFlat&&view!=='orbit'){e.preventDefault();keys.add(e.code)}
 });
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>{keys.clear();jumpPending=false;mouseLookFallback=false;pointers.clear();pinch=null});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)keys.clear()});

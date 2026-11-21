@@ -5,14 +5,6 @@ const poolBlue=new THREE.Color(.036,.145,.26);
 const poolRoomBounds=new THREE.Box3(new THREE.Vector3(-82,-92,-67),new THREE.Vector3(-24,5,-13));
 const poolReflectionLayer=1;
 const floodSeconds=30;
-// Centers and outward normals of the two stacks of 16 survey rungs. Feet and
-// landings are elevations of adjacent walkable faces, not the last rung height.
-const poolLadders=[
-  {x:-46.604,z:-44.434,nx:.00678,nz:.99998,bottom:-41.088,top:-35.088},
-  {x:-46.947,z:-53.476,nx:-.69,nz:.724,bottom:-35.088,top:-29.088}
-];
-let climbing=null;
-
 function basinLayer(y){
   const layers=pool.shape.layers;
   let lo=0,hi=layers.length-1;
@@ -114,7 +106,6 @@ function installPool(shape){
     pool.total+=(high-low)*(areas[a]+areas[b])/2;pool.volumes.push(pool.total);
   }
   makeTerminal();
-  $('flood-action').onclick=usePoolInteraction;
   $('reset-flood').onclick=()=>{resetFlood();note('浮力室已恢复干池')};
 }
 function targetTerminal(){
@@ -125,65 +116,17 @@ function targetTerminal(){
   const obstacle=hit(camera.position,toward,len);
   return !obstacle || pool.solids.includes(obstacle.object) || obstacle.distance>len-.08;
 }
-function nearbyLadder(){
-  if(!pool||view!=='walk'||isFlat||routeMapOpen||awaitingLanding||$('dialog').open||$('room-dialog').open)return null;
-  const eye=camera.position;
-  for(const ladder of poolLadders){
-    const dx=eye.x-ladder.x,dz=eye.z-ladder.z,front=dx*ladder.nx+dz*ladder.nz;
-    if(Math.abs(dx*ladder.nz-dz*ladder.nx)>.68||front< -1.15||front>1.3)continue;
-    if(eye.y<ladder.bottom+.45||eye.y>ladder.top+1.96)continue;
-    if(front<.08&&eye.y<ladder.top+1.32)continue;
-    const toward=new THREE.Vector3(ladder.x-eye.x,0,ladder.z-eye.z);
-    const dir=camera.getWorldDirection(new THREE.Vector3());dir.y=0;
-    if(toward.length()>.1&&dir.normalize().dot(toward.normalize())<.20)continue;
-    return ladder;
-  }
-  return null;
-}
-function usePoolInteraction(){
-  if(climbing){climbing=null;groundVelocity=0;syncMode();dirty=true;return}
-  if(pool?.state==='dry'&&targetTerminal()){startFlood();return}
-  const ladder=nearbyLadder();if(!ladder)return;
-  const p=camera.position;
-  climbing=ladder;groundVelocity=0;jumpPending=false;
-  p.set(ladder.x+ladder.nx*.48,THREE.MathUtils.clamp(p.y,ladder.bottom+1.7,ladder.top+1.7),ladder.z+ladder.nz*.48);
-  syncMode();dirty=true;
-}
-function climbStep(direction,dt){
-  const ladder=climbing,eye=camera.position;
-  jumpPending=false;
-  if(!direction)return;
-  eye.y=clamp(eye.y+direction*2.5*dt,ladder.bottom+1.7,ladder.top+1.7);
-  const up=direction>0,limit=(up?ladder.top:ladder.bottom)+1.7;
-  if(Math.abs(eye.y-limit)<.001){
-    const side=up?-.77:.67;
-    eye.x=ladder.x+ladder.nx*side;eye.z=ladder.z+ladder.nz*side;
-    climbing=null;updateImmersion();syncMode();
-  }
-  dirty=true;
-}
-function showPoolStatus(){
-  const button=$('flood-action'),terminal=targetTerminal()&&pool.state!=='full';
-  const ladder=climbing||(!terminal&&nearbyLadder());
-  button.hidden=isFlat||routeMapOpen||(!terminal&&!ladder);
-  if(!button.hidden){
-    button.disabled=!ladder&&pool.state==='filling';
-    const label=climbing?'松开梯子':ladder?'攀爬黄梯':button.disabled?'注水中 '+Math.floor(pool.fraction*100)+'%':'启动注水';
-    if(button.lastElementChild.textContent!==label)button.lastElementChild.textContent=label;
-  }
-  $('reset-flood').hidden=!(chosen?.name==='浮力室'&&pool.state!=='dry');
-}
 function startFlood(){
   if(!pool||pool.state!=='dry'||!targetTerminal())return;
   pool.state='filling';pool.started=performance.now();pool.fraction=0;
   if(pool.display.map)pool.display.map.offset.x=.5;else pool.display.color.setHex(0xefbe5c);
-  note('注水已启动');showPoolStatus();dirty=true;
+  note('注水已启动');updateInteraction();dirty=true;
 }
 function resetFlood(){
   if(!pool)return;
   pool.state='dry';pool.surface.visible=false;pool.level=pool.shape.layers[0][0];pool.fraction=0;
   if(pool.display.map)pool.display.map.offset.x=0;else pool.display.color.setHex(0x24b9b8);
-  pool.mirrorLevel=-100;updateImmersion();showPoolStatus();dirty=true;
+  pool.mirrorLevel=-100;updateImmersion();updateInteraction();dirty=true;
 }
 function advanceFlood(now){
   if(!pool)return;
@@ -199,7 +142,7 @@ function advanceFlood(now){
   if(pool.surface.visible&&!isFlat&&!routeMapOpen&&camera.position.distanceTo(pool.surface.position)<49&&now-pool.lastRipple>80){
     pool.surface.material.uniforms.clock.value=now*.001;pool.lastRipple=now;dirty=true;
   }
-  showPoolStatus();
+  updateInteraction();
 }
 // Reflect the cells touching the room. The oblique near plane excludes
 // submerged geometry so the reflection contains only the dry half-space.

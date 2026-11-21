@@ -137,7 +137,8 @@ async function initialize3D(){
   gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
   target=new THREE.Vector3(0,-25,24);
-  const [field,manifest,overview,water,appearance,cabins,basin]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz'),jsonFile('lab-equipment.json'),inflated('basin.gz')]);
+  const [field,manifest,overview,water,appearance,cabins,basin,routes]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz'),jsonFile('lab-equipment.json'),inflated('basin.gz'),jsonFile('ladders.json')]);
+  ladders=routes;
   const finishes=JSON.parse(new TextDecoder().decode(appearance));
   const photo=new THREE.Texture(atlas);
   photo.flipY=false;photo.needsUpdate=true;
@@ -147,7 +148,6 @@ async function initialize3D(){
   const texture=new THREE.DataTexture(rgba,1024,1024);texture.needsUpdate=true;
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
   material.defines={SURVEY_COUNT:1};
-  architecturalMaterials=makeArchitecturalMaterials(material,cabins);
   Object.assign(material.uniforms,labUniforms);
   Object.assign(material.uniforms,{
     surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},
@@ -155,6 +155,7 @@ async function initialize3D(){
     surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
     surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
   });
+  architecturalMaterials=makeArchitecturalMaterials(material,cabins);
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
   loadLabFinish().catch(error=>console.warn('浮力室材质加载失败',error));
@@ -289,12 +290,18 @@ const down=new THREE.Vector3(0,-1,0);
 function dropAt(x,z,reference=null){
   const y=reference??topAt(x,z)+2;
   const floor=hit(new THREE.Vector3(x,y+1,z),down,230);
-  camera.position.set(x,(floor?.point.y??topAt(x,z))+1.7,z);groundVelocity=0;
+  if(floor&&!crouched){
+    const origin=floor.point.clone();origin.y+=.05;
+    crouched=!!hit(origin,waterUp,standHeight+headMargin-.05);
+  }
+  camera.position.set(x,(floor?.point.y??topAt(x,z))+eyeHeight(),z);groundVelocity=0;
 }
 function cancelArrival(){arrivalSerial++;if(awaitingLanding){awaitingLanding=false;$('ready').textContent='场景就绪'}}
 async function changeView(mode,arrival=false){
   if(!glReady)return;
+  if(mode==='walk'&&view===mode&&!isFlat&&!arrival)return;
   climbing=null;
+  crouched=false;crouchToggle=false;
   if(mode!=='walk')releaseMouseLook();
   if(routeMapOpen)closeRouteMap(false);
   jumpPending=false;
@@ -318,6 +325,7 @@ async function changeView(mode,arrival=false){
         if(order!==arrivalSerial)return;
         awaitingLanding=false;$('ready').textContent='场景就绪';
         if(loaded.some(v=>!v)){note('起点模型尚未载入，请重试');return}
+        crouched=!!stop.crouch;
         if(stop.water){camera.position.set(stop.x,harbor.level+.28,stop.z);groundVelocity=0}
         else dropAt(stop.x,stop.z,stop.y==null?null:stop.y+.3);
         flyYaw=stop.yaw??Math.atan2(stop.x-pt.x,stop.z-pt.z);flyPitch=stop.pitch??-.04;
@@ -354,18 +362,23 @@ function approach(p){
   }
   return best||p;
 }
-function slideHorizontal(dx,dz,base,offsets){
+function slideHorizontal(dx,dz,base,offsets,bodyHeight=0){
   const eye=camera.position;
   for(const [x,z] of [[dx,0],[0,dz]]){
     const len=Math.hypot(x,z);if(!len)continue;
     const dir=new THREE.Vector3(x/len,0,z/len);
-    const blocked=offsets.some(h=>hit(new THREE.Vector3(eye.x,base+h,eye.z),dir,len+.23));
-    if(!blocked){eye.x+=x;eye.z+=z}
+    if(offsets.some(h=>hit(new THREE.Vector3(eye.x,base+h,eye.z),dir,len+.23)))continue;
+    if(bodyHeight){
+      const next=new THREE.Vector3(eye.x+x+dir.x*.20,base+.49,eye.z+z+dir.z*.20);
+      if(hit(next,waterUp,bodyHeight+headMargin-.49))continue;
+    }
+    eye.x+=x;eye.z+=z;
   }
 }
 function walkStep(dx,dz,dt){
-  const eye=camera.position, feet=eye.y-1.7;
-  slideHorizontal(dx,dz,feet,[.46,1.52]);
+  setStance(wantsCrouch());
+  const eye=camera.position,height=eyeHeight(),feet=eye.y-height;
+  slideHorizontal(dx,dz,feet,[.46,height-.18],height);
   const floor=hit(new THREE.Vector3(eye.x,feet+.48,eye.z),down,2.4);
   const standing=floor&&groundVelocity<=0&&Math.abs(feet-floor.point.y)<.12;
   if(jumpPending&&standing)groundVelocity=5.8;
@@ -373,10 +386,10 @@ function walkStep(dx,dz,dt){
   groundVelocity=Math.max(-18,groundVelocity-14*dt);
   let next=eye.y+groundVelocity*dt;
   if(groundVelocity>0){
-    const ceiling=hit(eye,waterUp,next-eye.y+.15);
-    if(ceiling){next=eye.y+Math.max(0,ceiling.distance-.15);groundVelocity=0}
-  }else if(floor&&next<=floor.point.y+1.7){
-    next=floor.point.y+1.7;groundVelocity=0;
+    const ceiling=hit(eye,waterUp,next-eye.y+headMargin);
+    if(ceiling){next=eye.y+Math.max(0,ceiling.distance-headMargin);groundVelocity=0}
+  }else if(floor&&next<=floor.point.y+height){
+    next=floor.point.y+height;groundVelocity=0;
   }
   eye.y=next;
   if(eye.y< -100){const p=approach(chosen||{x:8,z:-142});dropAt(p.x,p.z)}
@@ -387,8 +400,8 @@ function advance(dt){
     const r=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
     const v=Number(keys.has('KeyE')||keys.has('Space'))-Number(keys.has('KeyQ')||keys.has('ControlLeft'));
     if(climbing&&view==='walk'){climbStep(Math.sign(f||v),dt);return}
-    const walking=view==='walk',rate=walking?(swimming?3.2:4.2):24;
-    const sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');
+    const walking=view==='walk',rate=walking?(swimming?3.2:crouched?2:4.2):24;
+    const sprint=(!walking||!crouched)&&(keys.has('ShiftLeft')||keys.has('ShiftRight'));
     const speed=rate*(sprint?(walking?1.7:2.8):1)*dt/Math.max(1,Math.hypot(f,r));
     const dx=(-Math.sin(flyYaw)*f+Math.cos(flyYaw)*r)*speed,dz=(-Math.cos(flyYaw)*f-Math.sin(flyYaw)*r)*speed;
     if(view==='walk'){

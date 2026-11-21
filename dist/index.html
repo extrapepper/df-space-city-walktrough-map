@@ -25,10 +25,10 @@
 <div id="selection" hidden><span id="detail-group"></span><button id="deselect" class="close" aria-label="关闭地标详情">×</button><h2 id="detail-name"></h2><p id="detail-text"></p><button id="reference-photo" hidden>查看游戏画面</button><button id="show-room-views" hidden>查看室内全景</button><label id="landing-label">漫游起点<select id="landing" aria-label="按场景高度选择漫游起点"></select></label><button id="reset-flood" hidden>重置 S8 练习水位</button><button id="enter-here">在此漫游 <i data-icon="walk"></i></button></div>
 <div class="scale-bar" id="scale-bar"><span></span><i></i></div><div class="stage-bottom"><div class="view-info"><div><i></i><span id="view-label">全域总览</span></div><small id="hint">拖动旋转 · 滚轮缩放</small></div><div id="navigation"><button id="orbit" class="on" title="轨道环绕"><i data-icon="orbit"></i><span>环绕</span></button><button id="fly" title="自由相机"><i data-icon="fly"></i><span>自由飞行</span></button><button id="walk" title="第一人称步行"><i data-icon="walk"></i><span>步行</span></button></div></div>
 <button id="flood-action" hidden><kbd>F</kbd><span>启动注水</span></button>
-<div id="touchpad" hidden><button data-key="KeyW" aria-label="前进">▲</button><div><button data-key="KeyA" aria-label="左移">◀</button><button data-key="KeyS" aria-label="后退">▼</button><button data-key="KeyD" aria-label="右移">▶</button></div><button id="touch-jump" data-key="Space">跳</button><div id="vertical"><button data-key="KeyE">升</button><button data-key="KeyQ">降</button></div></div>
+<div id="touchpad" hidden><button data-key="KeyW" aria-label="前进">▲</button><div><button data-key="KeyA" aria-label="左移">◀</button><button data-key="KeyS" aria-label="后退">▼</button><button data-key="KeyD" aria-label="右移">▶</button></div><button id="touch-crouch" aria-label="切换蹲姿" aria-pressed="false">蹲</button><button id="touch-jump" data-key="Space">跳</button><div id="vertical"><button data-key="KeyE">升</button><button data-key="KeyQ">降</button></div></div>
 <section id="route-map" hidden aria-label="实时大地图">
   <div class="map-header"><h2>航天基地 <small>实时大地图</small></h2><button id="map-close" aria-label="关闭大地图">返回漫游 <kbd>M</kbd></button></div>
-  <div id="map-field"><canvas id="map-chart" aria-label="北向上的航天基地全图"></canvas><div id="map-player" aria-label="我的位置"><i></i><span>你的位置</span></div></div>
+  <div id="map-field"><canvas id="map-chart" aria-label="北向上的航天基地全图"></canvas><div id="map-ladders"></div><output id="map-ladder-info" hidden></output><div id="map-player" aria-label="我的位置"><i></i><span>你的位置</span></div></div>
   <div class="map-footer"><output id="map-position"></output><div><button id="map-minus" aria-label="缩小大地图">−</button><button id="map-plus" aria-label="放大大地图">＋</button><button id="map-follow">定位</button><button id="map-fit">全图</button></div></div>
 </section>
 <div id="busy" role="status"><span></span><b>正在载入地形</b><small id="load-status">读取航天基地场景</small></div>
@@ -43,5 +43,5 @@
 <p class="room-source">三角洲工坊 · 2025 年室内全景。拖动环顾，关闭后回到地图。</p>
 </dialog>
 <script src="vendor/three.min.js"></script><script src="vendor/bvh.js"></script>
-<script src="ui.js"></script><script src="lab.js"></script><script src="surfaces.js"></script><script src="office.js"></script><script src="scene.js"></script><script src="basin.js"></script><script src="water.js"></script><script src="route-map.js"></script><script src="app.js"></script>
+<script src="ui.js"></script><script src="lab.js"></script><script src="surfaces.js"></script><script src="office.js"></script><script src="scene.js"></script><script src="basin.js"></script><script src="water.js"></script><script src="traversal.js"></script><script src="route-map.js"></script><script src="app.js"></script>
 </body></html>

@@ -65,6 +65,7 @@ for(const ring of rings)assert(ring.length===256&&ring.every(cm=>cm>400&&cm<3200
 assert(nearRoles.has(4+cabins.length));
 for(const file of ['flood-console.webp','flood-housing.webp'])assert(read('data/'+file).length>0,file);
 const landings = json('landings.json');
+require('node:child_process').execFileSync(process.execPath,[path.join(__dirname,'landings.cjs'),'--check-ladders'],{stdio:'inherit'});
 for (const point of json('regions.json')) assert(landings[point.name]?.length, point.name);
 for (const stem of ['satellite.webp', 'survey-depth.png', 'survey-photos.webp', 'surfaces-color.webp', 'surfaces-normal.webp', 'office-seats.webp', 'office-study.json', 'office-globe.webp', 'sculpture-finish.webp', 'sculpture-reference.webp', 'lab-coatings.webp', 'buoyancy-finish.webp', 'buoyancy.webp', 'buoyancy-lower.webp']) {
   assert(read('data/' + stem).length > 0, stem);

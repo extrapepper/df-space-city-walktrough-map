@@ -10,6 +10,7 @@ const folder=path.resolve(__dirname,'../dist/data');
 const tiles=JSON.parse(fs.readFileSync(path.join(folder,'cells.json')));
 const regions=JSON.parse(fs.readFileSync(path.join(folder,'regions.json'),'utf8').replace(/^\uFEFF/,''));
 const down=new THREE.Vector3(0,-1,0),up=new THREE.Vector3(0,1,0);
+const {measureRoutes}=require('./ladder-routes.cjs');
 const ray=new THREE.Raycaster();THREE.Mesh.prototype.raycast=lib.acceleratedRaycast;
 function load(tile) {
   if(tile.mesh)return tile.mesh;
@@ -101,6 +102,14 @@ function viewStop({label,x,z,probeY,yaw,pitch}){
   if(rays(tiles,origin,up,1.95).length)throw Error('Insufficient headroom at '+label);
   return {label,x,y:+floor.point.y.toFixed(3),z,yaw:+yaw.toFixed(4),pitch};
 }
+const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
+const ladderFile=path.join(folder,'ladders.json');
+if(process.argv.includes('--check-ladders')){
+  require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(ladderFile)),ladders);
+  console.log('Verified '+ladders.length+' ladder shafts, end supports and clearances against the collision meshes.');
+  return;
+}
+fs.writeFileSync(ladderFile,JSON.stringify(ladders));
 const out={};for(const r of regions){
   out[r.name]=buildStops(r);
   if(views[r.name])out[r.name].push(viewStop(views[r.name]));
@@ -111,6 +120,15 @@ const out={};for(const r of regions){
     );
     out[r.name].splice(2,0,viewStop({label:'注水控制台 · S8',x:-43.65,z:-53.17,probeY:-27.3,yaw:2.38,pitch:-.25}));
     out[r.name].splice(3,0,viewStop({label:'池底黄梯',x:-46.60,z:-43.49,probeY:-39.6,yaw:0,pitch:.16}));
+  }
+  for(const route of ladders.filter(l=>l.region===r.name)){
+    const {name,x,z,nx,nz}=route,yaw=Math.atan2(nx,nz);
+    if(name!=='池底黄梯'&&name!=='池沿黄梯'){
+      out[r.name].push({label:name+(route.water?' · 水面':' · 梯脚'),x:x+nx*.67,z:z+nz*.67,
+        y:route.bottom,yaw,pitch:.28,...(route.water?{water:true}:{})});
+    }
+    out[r.name].push({label:name+' · 上口',x:x-nx*.77,z:z-nz*.77,y:route.top,
+      yaw:yaw+Math.PI,pitch:-.48,...(route.headroom?{crouch:true}:{})});
   }
   console.log(r.name,out[r.name].map(l=>l.y));
 }

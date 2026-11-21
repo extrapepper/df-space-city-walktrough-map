@@ -44,7 +44,11 @@ function updateImmersion(){
   const tint=body&&body===pool?poolBlue:underwaterColor;
   material.uniforms.immersionTint.value.copy(tint);
   scene.background=immersed?tint:null;
-  if(swimming!==afloat){swimming=afloat;syncMode()}
+  if(swimming!==afloat){
+    swimming=afloat;
+    if(swimming&&!climbing){crouched=false;crouchToggle=false}
+    syncMode();
+  }
 }
 function swimStep(dx,dz,vertical,dt){
   const eye=camera.position,body=waterAt(eye);

@@ -34,3 +34,9 @@ dialog{max-width:min(480px,90vw);background:#1b211d;color:#edf2e9;border:1px sol
 #flood-action:disabled{color:#efca80;cursor:default}
 #reset-flood{margin:5px 0;color:#c9d0c3;background:transparent;border:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 @media(pointer:coarse){#flood-action kbd{display:none}}
+#touch-crouch[aria-pressed="true"]{background:var(--lime);color:#192115}
+.map-ladder{position:absolute;transform:translate(-50%,-50%);width:24px;height:25px;display:grid;place-items:center;border:1px solid #b79c5a;border-radius:4px;background:#23251eee;color:#ffe0a0;padding:3px}
+.map-ladder svg{height:16px;width:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;pointer-events:none}
+.map-ladder[aria-pressed="true"]{background:#e5c678;color:#1d211b}
+#map-ladder-info{position:absolute;left:8px;bottom:8px;max-width:calc(100% - 16px);border-radius:3px;background:#141c17f2;color:#f1dfb8;padding:6px 9px;font-size:13px;pointer-events:none}
+.map-ladder[hidden],#map-ladder-info[hidden]{display:none}

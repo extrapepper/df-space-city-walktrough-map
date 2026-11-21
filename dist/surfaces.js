@@ -50,14 +50,26 @@ function makeArchitecturalMaterials(base,cabins){
     }`);
   steel.uniforms={metalPhoto:{value:null},photoEye:{value:new THREE.Vector3()},photoAxes:{value:new THREE.Matrix3()},
     focal:{value:new THREE.Vector2()},principal:{value:new THREE.Vector2()},depthScale:{value:new THREE.Vector2()},photoReady:{value:0}};
-  const rung=shader(`varying vec3 sitePosition;uniform float submerged;uniform vec3 immersionTint;
+  const rung=shader(`varying vec3 sitePosition;uniform float submerged,immersionLevel,finishReady;
+    uniform vec3 immersionTint;uniform sampler2D finishColor;
     void main(){
       vec3 n=normalize(cross(dFdx(sitePosition),dFdy(sitePosition)));
-      vec3 paint=vec3(.75,.56,.18)*(.72+.28*abs(dot(n,normalize(vec3(.4,.8,.36)))));
-      float haze=submerged*(1.-exp(-.046*distance(cameraPosition,sitePosition)));
+      float lit=clamp(.36+.70*dot(n,normalize(vec3(-.43,.82,.38))),0.,1.);
+      vec3 paint=mix(vec3(.31,.23,.066),vec3(.65,.51,.18),lit);
+      paint=mix(paint,vec3(.78,.68,.42),.70*max(n.y,0.));
+      if(sitePosition.z>70.)paint=mix(vec3(.18,.16,.12),vec3(.42,.37,.26),lit);
+      if(finishReady>.5){
+        vec2 plane=abs(n.y)>.65?sitePosition.xz:vec2(abs(n.x)>abs(n.z)?sitePosition.z:sitePosition.x,sitePosition.y);
+        vec2 uv=(vec2(3.,0.)+(8.+496.*fract(plane/.85))/512.)/vec2(4.,2.);
+        float metal=dot(texture2D(finishColor,uv).rgb,vec3(.29,.55,.16));
+        paint*=clamp(.88+.48*metal,.88,1.20);
+      }
+      float wetPath=distance(cameraPosition,sitePosition)*clamp((immersionLevel-cameraPosition.y)/max(.001,sitePosition.y-cameraPosition.y),0.,1.);
+      float haze=submerged*(1.-exp(-.046*wetPath));
       gl_FragColor=vec4(mix(paint,immersionTint,haze),1.);
     }`);
-  rung.uniforms={submerged:labUniforms.submerged,immersionTint:labUniforms.immersionTint};
+  rung.uniforms={submerged:labUniforms.submerged,immersionTint:labUniforms.immersionTint,
+    immersionLevel:labUniforms.immersionLevel,finishReady:base.uniforms.finishReady,finishColor:base.uniforms.finishColor};
   return [base,glass,collider,steel,...cabins.map(makeCabinMaterial),rung];
 }
 async function registerSteelPhoto(p){
