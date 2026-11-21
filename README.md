@@ -2,13 +2,18 @@
 
 双击 **启动地图.cmd** 启动本机网页，需要 Python 3。也可以运行 `python serve.py`，终端会显示本次使用的地址。关闭服务窗口即可退出。静态网站的所有运行文件均在 `dist`，可以直接部署到支持 HTTPS 的静态服务器。
 
+## GitHub Pages 部署
+
+仓库自带可部署的静态文件。Node.js 20 或以上运行 `node tools/build.cjs` 校验网页脚本、地图分区、楼层和贴图。GitHub Actions 在推送到 `main` 时校验并将 `dist/` 发布到 Pages，拉取请求运行相同的构建校验。Fork 后可在 Settings → Pages → Build and deployment 选择 GitHub Actions，再运行 Build and deploy atlas。网页资源使用相对路径，支持仓库名子路径。
+
 ## 熟悉地图
 
 - **环绕**　拖动旋转，右键拖动平移，滚轮缩放。点击地图标签或从索引搜索 14 个地标。
-- **步行**　选择地标和起点高度，按“在此漫游”。用 WASD 或方向键行走，拖动环顾，Shift 加速。起点由模型中实际可站立的表面生成，菜单显示相对场景原点的米数。
+- **步行**　选择地标和起点高度，按“在此漫游”。用 WASD 或方向键行走，移动鼠标环顾，Shift 奔跑，空格跳跃。Esc 释放鼠标，点击场景可重新接管视角。起点由模型中实际可站立的表面生成，菜单显示相对场景原点的米数。
 - **自由飞行**　用 WASD 平移，E 和 Q 升降，可以穿过墙体观察层间关系。右上角的小地图同步显示位置和朝向。
-- **按游戏画面找路**　在宿舍区、中控区、中控桥、工业区、发射区、水平试车场或码头区打开“查看游戏画面”，点击“从这个视角自由飞行”。相机会移到画面的拍摄位置，可以继续向建筑入口飞行。
+- **按游戏画面找路**　在宿舍区、中控区、中控桥、工业区、发射区、水平试车场、码头区或总裁室打开“查看游戏画面”，点击“从这个视角自由飞行”。相机会移到画面的拍摄位置，可以继续向建筑入口飞行。
 - **码头与水域**　从码头区的东侧上层、东侧中层或西侧下层进入建筑。从“码头前水面”出发可以直接游泳。用 WASD 游动，Q 下潜，E 上浮。触屏在水中会显示升降按钮。
+- **实时大地图**　步行、游泳或飞行时按 M 或点击小地图。箭头同步显示位置和朝向，展开时仍可移动。支持缩放、平移和定位，再按 M 返回原视角。
 - **平面地图**　使用与三维场景对齐的俯视底图。手机可以双指缩放，漫游时使用方向按钮。R 返回全图。
 - **室内全景**　选中蓝室、黑室、浮力室、离心机室或总裁室后，点击“查看室内全景”，选择房间或楼梯间。90 个取景点通过三角洲工坊的分享页联网加载。关闭窗口后会回到原先的三维视角。
 
@@ -33,3 +38,16 @@
 - 室内取景点按作者的分享标识定位，网页保留原站的全景导航和署名。[三角洲工坊航天基地全景](https://zzzmap.com/?map_type=htjd)
 - `tools/prepare.cjs` 可根据上述固定版本的场景重建网格。使用 Node.js，将源场景路径及 meshoptimizer 0.22.0 的 meshopt_simplifier.js 的绝对路径作为两个参数传入。随后依次运行 `node tools/water.cjs` 和 `node tools/landings.cjs` 更新水域与漫游落点。运行网站时使用预生成数据。
 - 浏览器渲染使用 Three.js 0.160.1，碰撞查询使用 three-mesh-bvh 0.7.4。两者的许可证附于 `dist/vendor`。
+
+近景颜色与法线贴图取自 Poly Haven 的 CC0 扫描素材。按游戏参考画面调整尺度和配色。
+
+- [concrete panels](https://polyhaven.com/a/concrete_panels)
+- [hangar concrete floor](https://polyhaven.com/a/hangar_concrete_floor)
+- [blue metal plate](https://polyhaven.com/a/blue_metal_plate)
+- [metal plate 02](https://polyhaven.com/a/metal_plate_02)
+- [clean asphalt](https://polyhaven.com/a/clean_asphalt)
+- [sandy gravel](https://polyhaven.com/a/sandy_gravel)
+- [wood floor](https://polyhaven.com/a/wood_floor)
+- [plastered wall 02](https://polyhaven.com/a/plastered_wall_02)
+
+总裁室的全息地球仪、支架和展台参照官方 2024 年室内走查重建。13 个关键帧和 686 个静态特征点用于估计相机运动，用桌边和南侧玻璃幕墙配准。地球仪尺寸和装饰为画面估计值。玻璃保留原始碰撞。地球轮廓来自 [Natural Earth](https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-land/)。

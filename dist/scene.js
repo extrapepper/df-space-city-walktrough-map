@@ -3,6 +3,7 @@ const viewport=$('viewport'), stage=$('stage');
 let gl, scene, camera, material, tiles=[], heights, atlas, grid, dirty=true;
 let radius=1050, azimuth=.68, pitch=.78, target, flyYaw=0, flyPitch=0, groundVelocity=0, transition=null;
 let arrivalSerial=0,awaitingLanding=false;
+let jumpPending=false;
 let glReady=false, detailClock=0, activeLoads=0, frameNum=0;
 const rays=[], keys=new Set(), pointers=new Map(), resident=new Set();
 const DEG=Math.PI/180;
@@ -37,6 +38,7 @@ float roof(vec2 p){
  vec4 packedHeight=texture2D(elevation,clamp((p+512.5)/1024.,0.,1.));
  return (dot(packedHeight.rg,vec2(255.,65280.))-32768.)*.01;
 }
+${architecturalSurfaces}
 vec3 registeredSurface(vec3 shaded, vec3 normal) {
  if(enableSurvey<.5)return shaded;
  for(int i=0;i<SURVEY_COUNT;i++){
@@ -57,6 +59,7 @@ vec3 registeredSurface(vec3 shaded, vec3 normal) {
 }
 void main(){
  vec3 n=normalize(cross(dFdx(world),dFdy(world)));
+ if(officeGlazing())discard;
  if(n.y<0. && category<.5)n=-n;
  vec2 uv=(world.xz-vec2(6.87,63.8025))/1308.85742+.5;
  vec3 ortho=texture2D(chart,uv).rgb;
@@ -80,10 +83,11 @@ void main(){
     float obstacle=roof(world.xz+vec2(-.72,-.52)*d)-world.y-d*.88;
     shadow=max(shadow,smoothstep(.7,4.,obstacle));
  }
- base*=shade*mix(1.,.69,shadow*exterior);
+ base=finishedSurface(base*shade,n,exterior,ortho);
+ base*=mix(1.,.74,shadow*exterior);
  if(category<.5){
     float edge=abs(fract(world.y/5.+.5)-.5)/max(fwidth(world.y/5.),.001);
-    base=mix(base,base*.72,(1.-smoothstep(.1,1.,edge))*contours*.56*(1.-water));
+    base=mix(base,base*.72,(1.-smoothstep(.1,1.,edge))*contours*.56*(1.-water)*smoothstep(30.,130.,distance(cameraPosition,world)));
  }
  float noise=fract(sin(dot(floor(world*19.),vec3(.19,3.19,7.41)))*471.37);
  base+=.016*(noise-.5);
@@ -135,12 +139,13 @@ async function initialize3D(){
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
   material.defines={SURVEY_COUNT:1};
   Object.assign(material.uniforms,{
-    surveyPhotos:{value:null},surveyDepth:{value:null},
+    surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},
     surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
     surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
     surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0},submerged:{value:0}
   });
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
+  loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     if(cell.overview){const result=readMesh(view,p);cell.low=result.mesh;p=result.offset;scene.add(cell.low)}
@@ -150,6 +155,7 @@ async function initialize3D(){
   if(p!==overview.byteLength)throw Error('场景分区索引不一致');
   THREE.Mesh.prototype.raycast=MeshBVHLib.acceleratedRaycast;
   installHarbor(water);
+  installOffice().catch(error=>console.warn('总裁室陈设加载失败',error));
   grid=new THREE.GridHelper(3200,128,0x48584c,0x374238);grid.position.y=-95;scene.add(grid);
   glReady=hasGL=true;resize3D();home3D();orbitCamera();
 }
@@ -254,6 +260,10 @@ function hit(origin,direction,length){
     if(!mesh.geometry.boundsTree)mesh.geometry.boundsTree=new MeshBVHLib.MeshBVH(mesh.geometry,{maxLeafTris:14});
     rays.length=0;mesh.raycast(cast,rays);if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
   }
+  if(officeBounds&&cast.ray.intersectsBox(officeBounds)&&officeBounds.distanceToPoint(origin)<=length){
+    rays.length=0;cast.intersectObjects(officeSolids,false,rays);
+    if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
+  }
   return best;
 }
 const down=new THREE.Vector3(0,-1,0);
@@ -265,6 +275,9 @@ function dropAt(x,z,reference=null){
 function cancelArrival(){arrivalSerial++;if(awaitingLanding){awaitingLanding=false;$('ready').textContent='场景就绪'}}
 async function changeView(mode,arrival=false){
   if(!glReady)return;
+  if(mode!=='walk')releaseMouseLook();
+  if(routeMapOpen)closeRouteMap(false);
+  jumpPending=false;
   if(isFlat)setFlat(false);
   cancelArrival();const order=arrivalSerial;
   transition=null;
@@ -333,10 +346,18 @@ function walkStep(dx,dz,dt){
   const eye=camera.position, feet=eye.y-1.7;
   slideHorizontal(dx,dz,feet,[.46,1.52]);
   const floor=hit(new THREE.Vector3(eye.x,feet+.48,eye.z),down,2.4);
+  const standing=floor&&groundVelocity<=0&&Math.abs(feet-floor.point.y)<.12;
+  if(jumpPending&&standing)groundVelocity=5.8;
+  jumpPending=false;
   groundVelocity=Math.max(-18,groundVelocity-14*dt);
-  const next=eye.y+groundVelocity*dt;
-  if(floor&&next<=floor.point.y+1.7){eye.y=floor.point.y+1.7;groundVelocity=0}
-  else eye.y=next;
+  let next=eye.y+groundVelocity*dt;
+  if(groundVelocity>0){
+    const ceiling=hit(eye,waterUp,next-eye.y+.15);
+    if(ceiling){next=eye.y+Math.max(0,ceiling.distance-.15);groundVelocity=0}
+  }else if(floor&&next<=floor.point.y+1.7){
+    next=floor.point.y+1.7;groundVelocity=0;
+  }
+  eye.y=next;
   if(eye.y< -100){const p=approach(chosen||{x:8,z:-142});dropAt(p.x,p.z)}
 }
 function advance(dt){
@@ -345,11 +366,12 @@ function advance(dt){
     const r=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
     const v=Number(keys.has('KeyE')||keys.has('Space'))-Number(keys.has('KeyQ')||keys.has('ControlLeft'));
     const walking=view==='walk',rate=walking?(swimming?3.2:4.2):24;
-    const speed=rate*(keys.has('ShiftLeft')||keys.has('ShiftRight')?2.8:1)*dt/Math.max(1,Math.hypot(f,r));
+    const sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');
+    const speed=rate*(sprint?(walking?1.7:2.8):1)*dt/Math.max(1,Math.hypot(f,r));
     const dx=(-Math.sin(flyYaw)*f+Math.cos(flyYaw)*r)*speed,dz=(-Math.cos(flyYaw)*f-Math.sin(flyYaw)*r)*speed;
     if(view==='walk'){
       const old=camera.position.clone();
-      if(swimming)swimStep(dx,dz,v,dt);else walkStep(dx,dz,dt);
+      if(swimming){jumpPending=false;swimStep(dx,dz,v,dt)}else walkStep(dx,dz,dt);
       dirty||=old.distanceToSquared(camera.position)>1e-8;
     }else if(f||r||v){
       camera.position.x=clamp(camera.position.x+dx,-650,650);camera.position.z=clamp(camera.position.z+dz,-650,700);camera.position.y=clamp(camera.position.y+v*speed,-98,700);dirty=true;
@@ -369,9 +391,10 @@ function animate3D(now,dt){
   if(!dirty)return;
   if(view==='orbit')orbitCamera();
   updateImmersion();
-  camera.updateMatrixWorld();gl.render(scene,camera);frameNum++;dirty=false;
+  camera.updateMatrixWorld();if(!routeMapOpen)gl.render(scene,camera);frameNum++;dirty=false;
   const xyz=view==='orbit'?target:camera.position;
   updateHUD(xyz.x,xyz.z,camera.position.y,view==='orbit'?azimuth:flyYaw);
+  if(routeMapOpen)updateMapPosition();
   layoutPins((p)=>{
     const v=new THREE.Vector3(p.x,topAt(p.x,p.z)+2,p.z);
     const dist=camera.position.distanceTo(v);
