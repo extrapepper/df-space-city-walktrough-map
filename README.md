@@ -1,5 +1,7 @@
 # 航天基地 · 三角洲地图集
 
+[打开网页版地图](https://extrapepper.github.io/df-space-city-walktrough-map/)
+
 双击 **启动地图.cmd** 启动本机网页，需要 Python 3。也可以运行 `python serve.py`，终端会显示本次使用的地址。关闭服务窗口即可退出。静态网站的所有运行文件均在 `dist`，可以直接部署到支持 HTTPS 的静态服务器。
 
 ## GitHub Pages 部署
