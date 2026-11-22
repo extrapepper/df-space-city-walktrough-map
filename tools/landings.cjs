@@ -142,6 +142,45 @@ const palmWalks=[
   {region:'工业区',label:'B1 楼路边棕榈',x:211.25,z:-211.2,probeY:-36,yaw:Math.PI,pitch:.30,detail:'面前的树位于 B1 厂房旁。向前下到路面可以走近树干，沿路转身可辨认厂房外墙。'},
   {region:'中控区',label:'楼前棕榈花池',x:-4,z:-188,probeY:-31,yaw:0,pitch:.21,detail:'面对中控楼，两侧花池里各有两棵棕榈。沿正前方的台阶上行，可从花池之间到达楼前平台。'}
 ];
+const dormData=JSON.parse(fs.readFileSync(path.join(folder,'dorm.json'))),dormCamera=JSON.parse(fs.readFileSync(path.join(folder,'dorm-camera.json')));
+function dormStudyStop(room,i){
+  const [ux,uz]=room.right,[x,y,z]=room.origin,[a,,b]=dormCamera.eye;
+  const forward=dormCamera.rotation[2],dx=ux*forward[0]-uz*forward[2],dz=uz*forward[0]+ux*forward[2];
+  return {...viewStop({label:['东栋窗边卧室','西北栋窗边卧室','西南栋窗边卧室'][i],x:+(x+ux*a-uz*b).toFixed(3),
+    z:+(z+uz*a+ux*b).toFixed(3),probeY:y+.85,yaw:Math.atan2(-dx,-dz),pitch:Math.asin(forward[1])}),dormRoom:room.id,
+    detail:'床在阳台窗边，写字台和书架沿床头墙排列。背后是通向走廊的门洞。从床尾绕向窗边可以到阳台。'};
+}
+const dormAccess=[
+  {label:'东栋卧室走廊口',x:-216.72,z:-158.2,probeY:-27.5,yaw:0,pitch:-.04,detail:'直行跨过矮门槛进入卧室，床和书桌在右边。继续走到窗边，对准左侧的阳台门按 F，再从门框中间通过。'},
+  {label:'东栋共用阳台',x:-216.9,z:-170.45,probeY:-27.1,yaw:-Math.PI/2,pitch:-.03,detail:'阳台连接两间卧室。沿窗走到远端，可从另一间卧室的门洞回到走廊。'}
+];
+function verifyDorm(stops){
+  const assert=require('node:assert/strict');
+  for(const [i,room] of dormData.rooms.entries()){
+    assert.deepEqual(stops['宿舍区'].find(s=>s.dormRoom===room.id),dormStudyStop(room,i));
+    const [rx,rz]=room.right,[x,y,z]=room.origin,front=new THREE.Vector3(rz,0,-rx);
+    for(const u of [-5.6,-2.3,3.3,6.5]){
+      const start=new THREE.Vector3(x+rx*u,y+.88,z+rz*u).addScaledVector(front,2.23);
+      const guard=rays(tiles,start,front,.85)[0];
+      assert(guard&&Math.abs(guard.distance-.45)<.018,'Balcony handrail '+room.id);
+    }
+  }
+  for(const view of dormAccess)assert.deepEqual(stops['宿舍区'].find(s=>s.label===view.label),interiorStop(view));
+  // Probe the original closed leaves and their pull handles. The
+  // browser moves the same three source meshes when opening each door.
+  for(const door of dormData.doors){
+    const s=door.segments[0],mid=s.min.map((v,k)=>(v+s.max[k])*.5),isX=s.max[0]-s.min[0]>1;
+    const outward=new THREE.Vector3(isX?0:-1,0,isX?1:0);
+    const across=new THREE.Vector3(isX?1:0,0,isX?0:1);
+    for(const side of [-.4,0,.4]){
+      const start=new THREE.Vector3(...mid).addScaledVector(outward,.30).addScaledVector(across,side);
+      const dir=outward.clone().negate(),h=rays(tiles,start,dir,.55)[0],test=new THREE.Ray(start,dir);
+      const depths=door.segments.map(s=>test.intersectBox(new THREE.Box3(new THREE.Vector3(...s.min),new THREE.Vector3(...s.max)),new THREE.Vector3()))
+        .filter(Boolean).map(p=>p.distanceTo(start));
+      assert(h&&Math.abs(h.distance-Math.min(...depths))<.008,'Misaligned dorm balcony door '+door.id);
+    }
+  }
+}
 function verifyPalmWalks(stops){
   const assert=require('node:assert/strict'),trees=JSON.parse(fs.readFileSync(path.join(folder,'palms.json')));
   for(const v of palmWalks)assert.deepEqual(stops[v.region].find(s=>s.label===v.label),interiorStop(v));
@@ -390,6 +429,8 @@ if(process.argv.includes('--check-ladders')){
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
   verifyPalmWalks(stops);
   console.log('Verified original dorm and B1 trunks, four forecourt tree bases and the central stairway.');
+  verifyDorm(stops);
+  console.log('Verified three apartment balconies, their native handrails, sliding doors and five walking starts.');
   verifyChamber(stops);
   verifyServerRooms(stops);
   verifyBlueHall(stops);
@@ -411,6 +452,7 @@ const out={};for(const r of regions){
   out[r.name]=buildStops(r);
   if(views[r.name])out[r.name].push(viewStop(views[r.name]));
   out[r.name].push(...palmWalks.filter(v=>v.region===r.name).map(interiorStop));
+  if(r.name==='宿舍区')out[r.name].push(...dormData.rooms.map(dormStudyStop),...dormAccess.map(interiorStop));
   for(const view of propViews.filter(v=>v.region===r.name))out[r.name].push(propStop(view));
   if(r.name==='浮力室'){
     out[r.name].unshift(

@@ -1,6 +1,6 @@
 'use strict';
 let architecturalMaterials;
-function makeArchitecturalMaterials(base,cabins,cabinets,study){
+function makeArchitecturalMaterials(base,cabins,cabinets,study,dorm){
   const vertexShader=`varying vec3 sitePosition;
     void main(){sitePosition=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
   const shader=(fragmentShader,transparent=false)=>new THREE.ShaderMaterial({
@@ -71,7 +71,7 @@ function makeArchitecturalMaterials(base,cabins,cabinets,study){
   rung.uniforms={submerged:labUniforms.submerged,immersionTint:labUniforms.immersionTint,
     immersionLevel:labUniforms.immersionLevel,finishReady:base.uniforms.finishReady,finishColor:base.uniforms.finishColor};
   return [base,glass,collider,steel,...cabins.map(makeCabinMaterial),rung,...cabinets.map(makeVendingMaterial),
-    ...study.surfaces.map((_,i)=>makeTrainingMaterial(i)),makeFreightMaterial(),...makeChamberMaterials(),...makeFoyerMaterials(),...makeCommandMaterials(),makeServerEquipment(),makeLabServerRoom(),...makeSuiteMaterials(),makePalmBarkMaterial()];
+    ...study.surfaces.map((_,i)=>makeTrainingMaterial(i)),makeFreightMaterial(),...makeChamberMaterials(),...makeFoyerMaterials(),...makeCommandMaterials(),makeServerEquipment(),makeLabServerRoom(),...makeSuiteMaterials(),makePalmBarkMaterial(),...makeDormMaterials(dorm,base)];
 }
 async function registerSteelPhoto(p){
   const photo=await new THREE.TextureLoader().loadAsync('data/sculpture-finish.webp');
@@ -86,7 +86,10 @@ function applySurfaceRuns(geo,index,runs){
   const sizes=new Array(architecturalMaterials.length).fill(0);
   sizes[0]=index.length;
   for(const [,count,role] of runs){sizes[role]+=count*3;sizes[0]-=count*3}
-  const result=new index.constructor(index.length),cursor=[];
+  // The three sliding doors have their original meshes at their current positions.
+  // Exclude the stationary copies from both the draw index and the collision BVH.
+  const result=new index.constructor(index.length-sizes[movingDoorRole]),cursor=[];
+  sizes[movingDoorRole]=0;
   let start=0;
   sizes.forEach((count,role)=>{
     cursor[role]=start;
@@ -94,6 +97,7 @@ function applySurfaceRuns(geo,index,runs){
     start+=count;
   });
   function copy(first,end,role){
+    if(role===movingDoorRole)return;
     result.set(index.subarray(first,end),cursor[role]);cursor[role]+=end-first;
   }
   let previous=0;

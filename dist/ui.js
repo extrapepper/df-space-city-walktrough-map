@@ -56,6 +56,16 @@ $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
   const label=chosen.landings[Number($('landing').value)]?.label;
+  const dormRoom=chosen.landings[Number($('landing').value)]?.dormRoom;
+  if(dormRoom){
+    setDialog(label+' · 游戏画面','<img class="reference" src="data/dorm-bedroom.webp" alt="窗边床铺和壁柜写字台的官方游戏画面"><p>2024 年官方攻略展示了窗边的床、书桌和壁柜。卧室按模型中的窗帘、窗槛和墙角校准。照片未注明楼栋，三处同型卧室共用按图估算的家具。<a href="https://www.taptap.cn/moment/564129131101424794" target="_blank" rel="noreferrer">官方地图攻略</a></p>');
+    const pose=dormViews.get(dormRoom);
+    if(pose){
+      const go=document.createElement('button');go.className='visit-photo';go.textContent='从这个位置自由飞行';
+      go.onclick=()=>{$('dialog').close();visitSurvey(pose)};$('dialog-body').append(go);
+    }
+    return;
+  }
   if((key==='ceo'||key==='blue-room')&&chosen.landings[Number($('landing').value)]?.panorama){$('show-room-views').click();return}
   const site=extractionSites.find(s=>s.landing?.label===label&&['centrifuge-switch','blue-switch','testbay'].includes(s.id));
   if(site){

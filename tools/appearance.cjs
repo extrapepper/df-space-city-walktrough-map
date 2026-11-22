@@ -42,6 +42,7 @@ function identifySurfaces(parts) {
   require('./servers.cjs').prepareServers(records,firstCommand+command.groups.length+2);
   const suite=require('./suite.cjs'),firstSuite=firstCommand+command.groups.length+3;
   suite.prepareSuite(records,firstSuite);
+  const dorm=require('./dorm.cjs').prepareDorm(parts,firstSuite+suite.groups.length+2);
   rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);
@@ -89,6 +90,7 @@ function identifySurfaces(parts) {
       }
     }
   }
+  return dorm;
 }
 // Runs reference triangle offsets in the original index buffer. The packed meshes
 // retain all their original vertices and triangles for collision and reproduction.

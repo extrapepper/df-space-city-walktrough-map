@@ -164,7 +164,11 @@ async function initialize3D(){
     surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
     surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
   });
-  architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets,training);
+  const [dorm,dormCamera]=await Promise.all([jsonFile('dorm.json'),jsonFile('dorm-camera.json')]);
+  architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets,training,dorm);
+  movingDoorRole=architecturalMaterials.indexOf(dormantDoorSource);
+  installDorm(dorm,dormCamera);
+  loadBedroomPhoto().catch(error=>console.warn('宿舍卧室贴图加载失败',error));
   installExtraction(...await Promise.all([jsonFile('extraction.json'),jsonFile('switch-housing.json')]));
   installTrainingRooms(training).catch(error=>console.warn('训练室材质加载失败',error));
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
@@ -301,6 +305,10 @@ function hit(origin,direction,length){
   for(const object of [trainingGlass,courtyardTrunks]){
     if(!object||object.geometry.boundingBox.distanceToPoint(origin)>length||!cast.ray.intersectsBox(object.geometry.boundingBox))continue;
     rays.length=0;object.raycast(cast,rays);
+    for(const h of rays)if(!best||h.distance<best.distance)best=h;
+  }
+  for(const solid of dormSolids)if(solid.bounds.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(solid.bounds)){
+    rays.length=0;solid.mesh.raycast(cast,rays);
     for(const h of rays)if(!best||h.distance<best.distance)best=h;
   }
   for(const tray of terminalTrays)if(tray.bounds.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(tray.bounds)){

@@ -146,7 +146,9 @@ function bakeHeight() {
 
 }
 async function main(){
-  await simplify.ready; readGeometry(); placeGeometry(); identifySurfaces(parts); bakeHeight();
+  await simplify.ready; readGeometry(); placeGeometry();
+  const dorm=identifySurfaces(parts);bakeHeight();
+  fs.writeFileSync(path.join(out,'dorm.json'),JSON.stringify(dorm));
   const sites=require('../dist/data/extraction.json').filter(s=>s.instance);
   const source=sites.find(s=>s.id==='centrifuge-switch');
   const switchParts=parts.filter(p=>p.instance>=source.instance&&p.instance<source.instance+16);
