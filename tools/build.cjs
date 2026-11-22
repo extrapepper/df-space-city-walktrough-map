@@ -91,6 +91,11 @@ const frond=read('data/palm-frond.webp');
 assert.equal(frond.subarray(8,16).toString(),'WEBPVP8X');
 assert(frond[20]&16,'The palm leaflets require alpha');
 assert.equal(read('data/palm-bark.webp').subarray(8,12).toString(),'WEBP');
+const steps=read('data/forecourt-steps.webp');
+assert.equal(steps.subarray(8,16).toString(),'WEBPVP8L');
+const stepSize=steps.readUInt32LE(21);
+assert.equal(1+(stepSize&16383),200);
+assert.equal(1+((stepSize>>>14)&16383),96);
 let labServerFaces=0,palmFaces=0;
 for(const cell of Object.values(appearances)){
   for(const [,count,role] of cell.near||[]){

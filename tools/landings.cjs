@@ -161,6 +161,15 @@ function verifyPalmWalks(stops){
     assert(!rays(tiles,new THREE.Vector3(-4,y+.045,z),up,1.85).length);
   }
   assert(y> -29.7 && y< -29.0);
+  for(const x of [-4,6.50])for(const [front,base,count] of [[-193.3665,-33.4270,14],[-199.1862,-31.1844,13]]){
+    for(let i=0;i<count;i++){
+      const z=front-.22*i-.11,level=base+.16024*i;
+      const tread=rays(tiles,new THREE.Vector3(x,level+.15,z),down,.22)[0];
+      assert(tread&&Math.abs(tread.point.y-level)<.03,'Misaligned forecourt tread');
+      const face=rays(tiles,new THREE.Vector3(x,level-.05,z+.23),new THREE.Vector3(0,0,-1),.24)[0];
+      assert(face&&Math.abs(face.point.z-z-.11)<.025,'Misaligned forecourt riser');
+    }
+  }
 }
 const blueHall=JSON.parse(fs.readFileSync(path.join(folder,'blue-hall.json')));
 const [southView,northView]=blueHall.views;

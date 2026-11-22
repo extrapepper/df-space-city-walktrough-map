@@ -96,6 +96,7 @@ void main(){
  float noise=fract(sin(dot(floor(world*19.),vec3(.19,3.19,7.41)))*471.37);
  base+=.016*(noise-.5);
  base=registeredSurface(base,n);
+ base=forecourtFinish(base,n);
  base=labFinish(base,world,n);
  // The upper gallery and fixtures share the blue light of H3's lined test bay.
  vec3 interiorMargin=min(world-vec3(51.26,-35.,-73.05),vec3(82.20,-13.6,-44.94)-world);
@@ -156,6 +157,7 @@ async function initialize3D(){
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
   material.defines={SURVEY_COUNT:1};
   Object.assign(material.uniforms,labUniforms,blueHallUniforms);
+  Object.assign(material.uniforms,{forecourtSteps:{value:null},forecourtReady:{value:0}});
   Object.assign(material.uniforms,{
     surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},office2024,
     surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
@@ -167,6 +169,7 @@ async function initialize3D(){
   installTrainingRooms(training).catch(error=>console.warn('训练室材质加载失败',error));
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
+  loadForecourtSteps().catch(error=>console.warn('中控楼台阶材质加载失败',error));
   loadLabFinish().catch(error=>console.warn('浮力室材质加载失败',error));
   loadVendingFinish().catch(error=>console.warn('售货机材质加载失败',error));
   loadChamber().catch(error=>console.warn('黑室材质加载失败',error));

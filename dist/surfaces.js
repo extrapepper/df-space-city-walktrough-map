@@ -108,6 +108,8 @@ const architecturalSurfaces=`
 uniform sampler2D finishColor;
 uniform sampler2D finishNormal;
 uniform sampler2D seatPhoto;
+uniform sampler2D forecourtSteps;
+uniform float forecourtReady;
 uniform float office2024;
 uniform float finishReady;
 // The glass and its duplicate physical barrier occupy four faces between z=19.026 and 19.113.
@@ -122,6 +124,50 @@ bool officeGlazing(){
 float joint(float v,float width){
   float edge=abs(fract(v+.5)-.5);
   return 1.-smoothstep(width,width+max(fwidth(v),.0015),edge);
+}
+vec3 forecourtFinish(vec3 photograph,vec3 n){
+  if(forecourtReady<.5||finishReady<.5||world.z> -193.06||world.z< -202.06||
+     world.x< -10.7||world.x>13.33||world.y< -33.59||world.y> -28.38)return photograph;
+  // Both flights share the same rise and run. The landing breaks their rhythm.
+  float fromBase=-193.3665-world.z;
+  float halfWidth=11.83-.514*clamp(fromBase,0.,2.86)-.309*clamp(fromBase-2.86,0.,2.96)-.076*clamp(fromBase-5.82,0.,2.64);
+  float across=abs(world.x-1.31);
+  float near=1.-smoothstep(8.,26.,distance(world,cameraPosition));
+  if(near<=0.)return photograph;
+  if(across<1.295&&world.z>=-201.73){
+    float along=clamp((-193.10-world.z)/8.62,0.,1.);
+    float strip=clamp((world.x-.05)/2.52,0.,1.);
+    vec2 capUV=vec2((.5+along*199.)/200.,(64.5+31.*strip)/96.);
+    vec3 cap=texture2D(forecourtSteps,capUV).rgb;
+    // The white lower panel is on the sloping top. Its vertical flanks
+    // expose the charcoal substrate along the stair-facing edges.
+    vec2 plane=abs(n.x)>.6?world.zy:world.xz;
+    vec2 uv=(8.+496.*fract(plane/1.37))/vec2(2048.,1024.);
+    float grain=dot(texture2D(finishColor,uv).rgb,vec3(.29,.55,.16));
+    if(abs(n.y)<.57)cap=mix(vec3(.245,.224,.202),min(cap,vec3(.46)),.40)*(.71+.17*abs(n.z));
+    cap*=clamp(.80+.40*grain,.81,1.12);
+    return mix(photograph,cap,near);
+  }
+  if(across<1.145||across>halfWidth+.06||world.z> -193.34)return photograph;
+  bool upper=world.z< -199.179;
+  float phase=((upper?-199.1862:-193.3665)-world.z)/.22;
+  bool tread=abs(n.y)>.58;
+  float stepIndex=clamp(floor(phase+(tread?.014:.50)),0.,upper?12.:13.);
+  float top=(upper?-31.1844:-33.4270)+.16024*stepIndex;
+  if(world.y<top-(tread?.043:.175)||world.y>top+.035)return photograph;
+  float row=2.*(stepIndex+(upper?14.:0.))+(tread?0.:1.);
+  if(!upper&&stepIndex==13.&&tread)row=54.+9.*clamp((-196.374-world.z)/2.655,0.,1.);
+  vec2 uv=vec2((.5+199.*clamp((world.x+10.81)/24.24,0.,1.))/200.,(row+.5)/96.);
+  vec3 pigment=texture2D(forecourtSteps,uv).rgb;
+  vec2 plane=tread?world.xz:world.xy;
+  vec2 tile=(vec2(1.,0.)+(8.+496.*fract(plane/1.75))/512.)/vec2(4.,2.);
+  float grain=dot(texture2D(finishColor,tile).rgb,vec3(.29,.55,.16));
+  vec2 bump=texture2D(finishNormal,tile).rg*2.-1.;
+  float nosing=1.-smoothstep(.014,.031,abs(phase-stepIndex)*.22);
+  vec3 surface=pigment*clamp(.78+1.26*grain,.76,1.25);
+  surface*=tread?1.005+.065*nosing:.89+.048*smoothstep(top-.07,top,world.y);
+  surface+=vec3(.019)*dot(bump,vec2(-.55,.82));
+  return mix(photograph,surface,near*smoothstep(1.145,1.185,across)*(1.-smoothstep(halfWidth-.08,halfWidth+.06,across)));
 }
 vec3 finishedSurface(vec3 base,vec3 n,float exposed,vec3 ortho){
   float dist=distance(cameraPosition,world);
@@ -246,4 +292,9 @@ async function loadFinishes(){
   material.uniforms.finishNormal.value=normal;
   material.uniforms.seatPhoto.value=fabric;
   material.uniforms.finishReady.value=1;dirty=true;
+}
+async function loadForecourtSteps(){
+  const texture=await new THREE.TextureLoader().loadAsync('data/forecourt-steps.webp');
+  texture.flipY=false;texture.generateMipmaps=false;texture.minFilter=THREE.LinearFilter;
+  texture.needsUpdate=true;material.uniforms.forecourtSteps.value=texture;material.uniforms.forecourtReady.value=1;dirty=true;
 }
