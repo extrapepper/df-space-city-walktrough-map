@@ -16,7 +16,7 @@ const twins = new Map([
   [9,[8]], [17,[16]], [634,[633,1462]], [255,[254,628,1096]],
   [63,[62,221,563,431,364]], [249,[248]], [89,[87]], [484,[483]],
   [6,[1]], [13,[164,170]], [847,[846]], [49,[48]], [166,[165]],
-  [53,[52]], [1054,[1053]], [1076,[1077]], [1022,[1021]]
+  [53,[52]], [1054,[1053]], [1022,[1021]]
 ]);
 const palletShells=new Map([[96,97],[1508,1509],[1510,1511],[1515,1516],[1645,1646]]);
 function matchingBounds(a,b) {
@@ -38,6 +38,7 @@ function identifySurfaces(parts) {
   foyer.prepareFoyer(records,firstFoyer);
   const command=require('./command.cjs'),firstCommand=firstFoyer+foyer.groups.length;
   command.prepareCommandRoom(records,firstCommand);
+  require('./servers.cjs').prepareServers(records,firstCommand+command.groups.length+2);
   rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);
@@ -46,7 +47,10 @@ function identifySurfaces(parts) {
     }
   });
   for (const part of parts) {
-    if(part.freight)part.finish=part.freight.style>10?firstCommand+command.groups.length:firstRoom+rooms.length;
+    if(part.freight){
+      const style=part.freight.style,officeRole=firstCommand+command.groups.length;
+      part.finish=style>=24?officeRole+1:style>10?officeRole:firstRoom+rooms.length;
+    }
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;
     if (part.id === 1022) part.finish = 3;

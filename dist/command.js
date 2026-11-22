@@ -15,7 +15,7 @@ const commandSamples=`
   }`;
 function makeCommandMaterials(){
   const hall=new THREE.ShaderMaterial({side:THREE.DoubleSide,extensions:{derivatives:true},
-    vertexShader:trainingVertex,uniforms:commandPaint,fragmentShader:`varying vec3 site;${commandSamples}
+    vertexShader:trainingVertex,uniforms:{...commandPaint,...serverFinish},fragmentShader:`varying vec3 site;${commandSamples}${serverSamples}${serverRoomShader}
     void main(){
       vec3 n=normalize(cross(dFdx(site),dFdy(site)));
       float h=site.y+23.648,sideLight=.90+.10*dot(n,normalize(vec3(-.38,.74,.56)));
@@ -49,7 +49,8 @@ function makeCommandMaterials(){
         if(h<.15)paint=vec3(.13,.15,.16);
         paint*=1.-.19*max(seam((u-.3)/2.08,.003),seam((h-.89)/1.55,.006));
       }
-      gl_FragColor=vec4(paint*sideLight,1.);
+      if(site.x>68.64)paint=serverRoom(site,n);
+      gl_FragColor=vec4(portalFinish(site,n,paint)*sideLight,1.);
     }`});
   const frames=new THREE.ShaderMaterial({side:THREE.DoubleSide,extensions:{derivatives:true},vertexShader:trainingVertex,
     fragmentShader:`varying vec3 site;void main(){

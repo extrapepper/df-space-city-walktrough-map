@@ -170,6 +170,8 @@ async function initialize3D(){
   loadChamber().catch(error=>console.warn('黑室材质加载失败',error));
   installFoyer().catch(error=>console.warn('黑室门厅加载失败',error));
   installCommandRoom().catch(error=>console.warn('指挥室材质加载失败',error));
+  installRackDetails();
+  installRackTerminals().catch(error=>console.warn('机柜终端加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     cell.surfaces=finishes[cell.file];
@@ -290,6 +292,10 @@ function hit(origin,direction,length){
   if(trainingGlass&&trainingGlass.geometry.boundingBox.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(trainingGlass.geometry.boundingBox)){
     rays.length=0;trainingGlass.raycast(cast,rays);
     for(const pane of rays)if(!best||pane.distance<best.distance)best=pane;
+  }
+  for(const tray of terminalTrays)if(tray.bounds.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(tray.bounds)){
+    rays.length=0;tray.mesh.raycast(cast,rays);
+    for(const h of rays)if(!best||h.distance<best.distance)best=h;
   }
   if(officeBounds&&cast.ray.intersectsBox(officeBounds)&&officeBounds.distanceToPoint(origin)<=length){
     rays.length=0;cast.intersectObjects(officeSolids,false,rays);

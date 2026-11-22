@@ -128,12 +128,20 @@ const chamberViews=[
   {label:'二楼指挥室观察窗',x:53.20,z:23.90,probeY:-22.5,yaw:-.114,pitch:.03,panorama:'514be042bb094cb9a26226f7211bbe6c',detail:'窗上排着五块显示屏。站在工作桌后向外看，可以找到一楼的圆形试验舱门。西墙的大灯箱靠近楼梯入口。'},
   {label:'二楼指挥室西墙灯箱',x:55.50,z:22.20,probeY:-22.5,yaw:Math.PI/2,pitch:.08,panorama:'514be042bb094cb9a26226f7211bbe6c',detail:'面向 HAAVK 灯箱时，左手边的门通往楼梯。转身沿中央浅色地砖走，可以到房间另一端。'}
 ];
-function chamberStop(view){return {...viewStop(view),panorama:view.panorama,...(view.detail?{detail:view.detail}:{})}}
+const serverViews=[
+  {region:'黑室',label:'指挥室东门',x:65.9,z:21.96,probeY:-22.5,yaw:-Math.PI/2,pitch:.015,panorama:'22ae16c3020f46dabecf26c79f95153e',detail:'直行穿过黑色门框就到服务器房。进门后向左绕过第一排机柜，靠近百叶窗的一侧有两台倒下的窄柜。'},
+  {region:'黑室',label:'二楼倾倒机柜',x:74.55,z:19.26,probeY:-22.5,yaw:-.36,pitch:.04,panorama:'6fb90a34511b4c1585c00042248ac7b7'},
+  {region:'黑室',label:'服务器房中央通道',x:80.38,z:24.36,probeY:-22.5,yaw:.059,pitch:.015,panorama:'a6bf3a6a39ae45d8a79e8ab5dd81d987',detail:'左右两组长机柜之间可以通行。前方绿墙边有一台带亮屏的设备。从机柜任意一端绕回西侧，都能回到指挥室。'},
+  {region:'离心机室',label:'二楼服务器房西门',x:-71.3,z:6.92,probeY:-18.8,yaw:-Math.PI/2,pitch:.01,panorama:'9b32501a53ed48969d23a8b42bf41227',detail:'从西门直走，右侧有窄屏服务器。保持前进，靠近横在过道上的倒柜时按空格跳过去。走到房间另一头向右转，可从南门出去。'},
+  {region:'离心机室',label:'二楼服务器房南门',x:-43.61,z:11.8,probeY:-18.8,yaw:0,pitch:.01,panorama:'ba5895cb58084d80909825493a761db5',detail:'穿过门洞后向左转。沿两排机柜之间的过道向西走，可以返回西门。'},
+  {region:'蓝室',label:'二楼机柜区北门',x:47,z:-45.4,probeY:-18.8,yaw:Math.PI,pitch:.015,detail:'穿过北门向左转，沿两列机柜之间的过道往东走。遇到横倒的窄柜，保持移动并按空格起跳。'}
+];
+function interiorStop(view){return {...viewStop(view),...(view.panorama?{panorama:view.panorama}:{}),...(view.detail?{detail:view.detail}:{})}}
 function verifyChamber(stops){
   const panoramas=JSON.parse(fs.readFileSync(path.join(folder,'room-views.json')))['黑室'];
   for(const v of chamberViews){
     if(!panoramas.some(s=>s.id===v.panorama))throw Error('Missing panorama for '+v.label);
-    require('node:assert/strict').deepEqual(stops['黑室'].find(s=>s.label===v.label),chamberStop(v));
+    require('node:assert/strict').deepEqual(stops['黑室'].find(s=>s.label===v.label),interiorStop(v));
   }
   for(const x of [40.8,41.4,42]){
     const ground=z=>rays(tiles,new THREE.Vector3(x,-28.1,z),down,1.5)[0]?.point.y;
@@ -166,6 +174,45 @@ function verifyChamber(stops){
   const eye=new THREE.Vector3(53.2,height+1.70,23.9),toHatch=new THREE.Vector3(58.58,-19.22,1.15).sub(eye);
   const depth=toHatch.length(),hub=rays(tiles,eye,toHatch.normalize(),depth+1)[0];
   if(!hub||Math.abs(hub.distance-depth)>.24)throw Error('H4 observation window has lost sight of the hatch');
+}
+function verifyServerRooms(stops){
+  const panoramas=JSON.parse(fs.readFileSync(path.join(folder,'room-views.json')));
+  for(const view of serverViews){
+    if(view.panorama&&!panoramas[view.region].some(v=>v.id===view.panorama))throw Error('Missing server room panorama '+view.label);
+    require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),interiorStop(view));
+  }
+  const paths=[
+    [-23.648,[[53.2,23.9],[65.9,23.9],[65.9,21.96],[71.1,21.96],[71.1,19.22],[80.38,19.22],
+       [80.38,24.36],[75,24.6],[71.1,24.6],[71.1,21.96],[68,21.96]]],
+    [-20.128,[[-71.3,6.92],[-56.94,6.92]]],[-20.128,[[-43.61,11.8],[-43.61,6.92],[-54.68,6.92]]],
+    [-20.128,[[47,-45.4],[47,-40.7],[63.78,-40.7]]],[-20.128,[[65.83,-40.7],[75.5,-40.7]]]
+  ];
+  for(const [base,points] of paths)for(let i=1;i<points.length;i++){
+    const [ax,az]=points[i-1],[bx,bz]=points[i];
+    const len=Math.hypot(bx-ax,bz-az),steps=Math.ceil(len/.15),nx=(bz-az)/len,nz=(ax-bx)/len;
+    const along=new THREE.Vector3(-nz,0,nx);
+    for(const side of [-.27,0,.27])for(const h of [.46,1.5]){
+      if(rays(tiles,new THREE.Vector3(ax+side*nx,base+h,az+side*nz),along,len).length)
+        throw Error('Wall across server room walking route');
+    }
+    for(let j=0;j<=steps;j++)for(const side of [-.29,0,.29]){
+      const x=ax+(bx-ax)*j/steps+side*nx,z=az+(bz-az)*j/steps+side*nz;
+      const floor=rays(tiles,new THREE.Vector3(x,base+.32,z),down,.63)[0];
+      if(!floor||Math.abs(floor.point.y-base)>.07||Math.abs(floor.face.normal.y)<.85||
+          rays(tiles,new THREE.Vector3(x,floor.point.y+.04,z),up,1.91).length)
+        throw Error('Obstructed server aisle at '+x+', '+z);
+    }
+  }
+  // These two fallen cabinets cross the centre line. Sample the actual
+  // obstacle tops separately from the standing floor on either approach.
+  for(const [xs,z,lo,hi] of [[[-55.95,-55.72,-55.49],6.92,.62,.72],[[64.62,64.8,65.02],-40.7,.60,.64]]){
+    for(const x of xs){
+      const top=rays(tiles,new THREE.Vector3(x,-18.3,z),down,2.2)[0];
+      if(!top||top.point.y+20.128<lo||top.point.y+20.128>hi||
+        rays(tiles,new THREE.Vector3(x,top.point.y+.035,z),up,2.1).length)
+        throw Error('Server aisle obstacle or overhead clearance changed');
+    }
+  }
 }
 const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
 const ladderFile=path.join(folder,'ladders.json');
@@ -201,6 +248,8 @@ if(process.argv.includes('--check-ladders')){
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
   verifyChamber(stops);
+  verifyServerRooms(stops);
+  console.log('Verified the H4 server aisle loop and access through the H1 west, H1 south and H3 north doors.');
   console.log('Verified H4 entrance, both stair flights, command room, hatch sightline and test-bay sill.');
   for(const view of propViews)require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),propStop(view));
   for(const site of extraction.filter(site=>site.landing)){
@@ -234,7 +283,8 @@ const out={};for(const r of regions){
   }
   if(r.name==='码头区')out[r.name].push(viewStop({label:'南侧平台售货机',x:-48.655,z:140.532,probeY:-31.86,yaw:-.6285,pitch:-.1151}));
   if(r.name==='黑室')out[r.name].push(viewStop({label:'器材架旁售货机',x:54.770,z:22.709,probeY:-27.65,yaw:1.986,pitch:-.12}));
-  if(r.name==='黑室')out[r.name].unshift(...chamberViews.map(chamberStop));
+  out[r.name].push(...serverViews.filter(v=>v.region===r.name).map(interiorStop));
+  if(r.name==='黑室')out[r.name].unshift(...chamberViews.map(interiorStop));
   if(r.name==='离心机室'){
     out[r.name].push(viewStop({label:'A 门入口',x:-45.75,z:19.65,probeY:-28.95,yaw:Math.PI/2,pitch:0}));
     out[r.name].push(viewStop({label:'转臂训练舱',x:-62.8,z:15.6,probeY:-28.95,yaw:-2.94,pitch:.14}));

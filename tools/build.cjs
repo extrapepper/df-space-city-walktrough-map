@@ -50,14 +50,17 @@ for(const [x,y,z,tx,tz,w,h] of training.windows){
 }
 assert(training.eye.every(Number.isFinite)&&training.focal>0&&training.depth[1]>training.depth[0]);
 const trainingFaces=training.surfaces.map(()=>0);
-const freightRole=firstRoom+training.surfaces.length,paintedFaces=new Array(24).fill(0);
+const freightRole=firstRoom+training.surfaces.length,paintedFaces=new Array(32).fill(0);
 const chamberFaces=require('./chamber.cjs').groups.map(()=>0);
 const foyerFaces=require('./foyer.cjs').groups.map(()=>0),firstFoyer=freightRole+1+chamberFaces.length;
 const commandFaces=require('./command.cjs').groups.map(()=>0),firstCommand=firstFoyer+foyerFaces.length;
 const officeRole=firstCommand+commandFaces.length;
+const serverRole=officeRole+1,labServerRole=serverRole+1;
+let labServerFaces=0;
 for(const cell of Object.values(appearances)){
   for(const [,count,role] of cell.near||[]){
-    if(role===officeRole)continue;
+    if(role===labServerRole){labServerFaces+=count;continue}
+    if(role===officeRole||role===serverRole)continue;
     if(role>=firstCommand){commandFaces[role-firstCommand]+=count;continue}
     if(role>=firstFoyer){foyerFaces[role-firstFoyer]+=count;continue}
     if(role>freightRole){chamberFaces[role-freightRole-1]+=count;continue}
@@ -70,6 +73,7 @@ assert.deepEqual(trainingFaces,[7001+8370+1456,2861+88,4*64+2*92,2*856+1332,5558
 assert.deepEqual(chamberFaces,[1048+967,9563,630+228,2*(132+127+94+218+135),386,3245,1678,1392]);
 assert.deepEqual(foyerFaces,[2363+171,1085,6461,70*4+206,4053,1392+50+568,3*123+469,1085,6461,6461]);
 assert.deepEqual(commandFaces,[494,6*56,122]);
+assert.equal(labServerFaces,106+156);
 cabinetFaces.forEach((n,i)=>assert.equal(n,227,'Vending machine '+cabinets[i].instance));
 const knownCells = new Set(cells.map(cell => cell.file));
 for (const file of Object.keys(appearances)) assert(knownCells.has(file), file);
@@ -114,13 +118,13 @@ function meshEnd(bytes, offset, runs = [],paint,near=false) {
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=officeRole, 'Invalid triangle material range');
-    if(role===freightRole||role===officeRole){
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=labServerRole, 'Invalid triangle material range');
+    if(role===freightRole||role===officeRole||role===serverRole){
       assert(styles);
       for(let f=face;f<last;f++){
         const p=indexStart+3*f*indexSize,style=styles[bytes.readUIntLE(p,indexSize)];
         assert(style&&style===styles[bytes.readUIntLE(p+indexSize,indexSize)]&&style===styles[bytes.readUIntLE(p+indexSize*2,indexSize)]);
-        assert.equal(style>10,role===officeRole);
+        assert.equal(role,style>=24?serverRole:style>10?officeRole:freightRole);
         if(near)paintedFaces[style]++;
       }
     }
@@ -136,8 +140,18 @@ for (const cell of cells) {
   assert.equal(meshEnd(mesh,0,finish.near,finish.nearFreight,true),mesh.length,cell.file);
   if(cell.overview)overviewOffset=meshEnd(overview,overviewOffset,finish.far,finish.farFreight);
 }
-assert.deepEqual(paintedFaces,[0,618*138,357*134,260*120,325*136,217*316,2*120,2*120,7*138,6*134,5*324,
-  99*202,84*417,118*34,49*322,322,322,0,4*28,3*28,3*78,426+3*496,28+12*2,2*78]);
+assert.deepEqual(paintedFaces,[0,618*138,357*134,260*120,325*136,217*316,2*120,2*120,7*138,6*134,3*324,
+  99*202,84*417,118*34,49*322,322,322,0,4*28,3*28,3*78,426+3*496,28+12*2,2*78,
+  23*170,127*58,2*324,8*12,192,6*12,2*12,3*12]);
+assert.equal(read('data/server-finish.webp').subarray(8,12).toString(),'WEBP');
+const terminalFrames=json('server-terminals.json');
+assert.deepEqual(terminalFrames.map(t=>t.id),[13450,15508,18207,18306,18307,18732,18735,18811]);
+for(const f of terminalFrames){
+  const dot=(a,b)=>a.reduce((sum,v,i)=>sum+v*b[i],0);
+  assert(f.foot.length===3&&f.foot.every(Number.isFinite));
+  assert([f.right,f.up,f.front].every(v=>Math.abs(dot(v,v)-1)<.00001));
+  assert(Math.abs(dot(f.right,f.front))+Math.abs(dot(f.up,f.front))+Math.abs(dot(f.up,f.right))<.00001);
+}
 assert.equal(read('data/command-finish.webp').subarray(8,12).toString(),'WEBP');
 const wallScreen=json('command-screens.json');
 assert.equal(wallScreen.indices.length,322*3);
