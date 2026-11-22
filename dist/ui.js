@@ -56,7 +56,7 @@ $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
   const label=chosen.landings[Number($('landing').value)]?.label;
-  if(key==='ceo'&&chosen.landings[Number($('landing').value)]?.panorama){$('show-room-views').click();return}
+  if((key==='ceo'||key==='blue-room')&&chosen.landings[Number($('landing').value)]?.panorama){$('show-room-views').click();return}
   const site=extractionSites.find(s=>s.landing?.label===label&&['centrifuge-switch','blue-switch','testbay'].includes(s.id));
   if(site){
     const file=site.panel?site.id:'testbay-exit';
@@ -111,6 +111,7 @@ $('show-room-views').onclick=async()=>{
   const request=++roomOpenRequest;
   $('room-title').textContent=place.name+' · 室内全景';
   $('room-stop').replaceChildren();
+  $('room-fly').hidden=true;
   $('room-link').hidden=true;
   $('room-screen').textContent='正在读取取景点';
   $('room-dialog').showModal();
@@ -118,6 +119,7 @@ $('show-room-views').onclick=async()=>{
     roomViewIndex??=await jsonFile('room-views.json');
     if(request!==roomOpenRequest||!$('room-dialog').open)return;
     const stops=roomViewIndex[place.name];
+    if(place.name==='蓝室'&&glReady)approachBlueHall(place);
     const panorama=place.landings[Number($('landing').value)]?.panorama;
     const preferred=stops.find(s=>s.id===panorama)||stops.find(s=>s.name===place.name+'门口')||stops.find(s=>s.name.includes('门口大厅'))||stops[0];
     $('room-stop').replaceChildren(...stops.map(s=>new Option(s.name,s.id,false,s===preferred)));
@@ -132,6 +134,7 @@ function showRoomView(){
   const url=new URL('https://zzzmap.com/');
   url.searchParams.set('map_type','htjd');url.searchParams.set('sid',$('room-stop').value);
   $('room-link').href=url.href;$('room-link').hidden=false;
+  refreshRoomPose();
   const frame=document.createElement('iframe');
   frame.title=$('room-title').textContent+' · '+name;
   frame.sandbox='allow-scripts allow-same-origin allow-presentation allow-popups';
@@ -139,6 +142,16 @@ function showRoomView(){
   frame.allow='fullscreen';frame.src=url.href;
   $('room-screen').replaceChildren(frame);
 }
+function refreshRoomPose(){
+  $('room-fly').hidden=!glReady||!surveyViews.has($('room-stop').value);
+}
+$('room-fly').onclick=()=>{
+  const pose=surveyViews.get($('room-stop').value);
+  if(!pose||!glReady)return;
+  $('room-dialog').close();
+  if(isFlat)setFlat(false);
+  visitSurvey(pose);
+};
 $('room-stop').onchange=showRoomView;
 function releaseRoomView(){
   if($('room-dialog').open)return;

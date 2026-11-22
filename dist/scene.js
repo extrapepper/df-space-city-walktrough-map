@@ -42,6 +42,7 @@ float roof(vec2 p){
 }
 ${architecturalSurfaces}
 ${labProjection}
+${blueHallProjection}
 vec3 registeredSurface(vec3 shaded, vec3 normal) {
  if(enableSurvey<.5)return shaded;
  for(int i=0;i<SURVEY_COUNT;i++){
@@ -100,6 +101,7 @@ void main(){
  vec3 interiorMargin=min(world-vec3(51.26,-35.,-73.05),vec3(82.20,-13.6,-44.94)-world);
  float blueLight=smoothstep(0.,.36,min(interiorMargin.x,min(interiorMargin.y,interiorMargin.z)));
  base*=mix(vec3(1.),mix(vec3(.68,.76,.91),vec3(.45,.56,.83),smoothstep(-31.,-25.,world.y)),blueLight);
+ base=blueHallFinish(base,world,n);
  float fall=smoothstep(360.,650.,length((world.xz-vec2(0.,22.))*vec2(1.18,.9)));
  base=mix(base,vec3(.115,.153,.135),fall*.89);
  float wetPath=distance(cameraPosition,world)*clamp((immersionLevel-cameraPosition.y)/max(.001,world.y-cameraPosition.y),0.,1.);
@@ -153,7 +155,7 @@ async function initialize3D(){
   const texture=new THREE.DataTexture(rgba,1024,1024);texture.needsUpdate=true;
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
   material.defines={SURVEY_COUNT:1};
-  Object.assign(material.uniforms,labUniforms);
+  Object.assign(material.uniforms,labUniforms,blueHallUniforms);
   Object.assign(material.uniforms,{
     surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},office2024,
     surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
@@ -269,6 +271,7 @@ async function readCell(cell){
 function streamDetail(now){
   if(awaitingLanding)return;
   const anchor=view==='orbit'?target:camera.position;
+  if(view!=='orbit'||radius<330)approachBlueHall(anchor);
   const range=view==='orbit'?(radius<330?115:0):115;
   for(const cell of resident){
     if(!range||distanceXZ(cell.bbox,anchor)>range+95){

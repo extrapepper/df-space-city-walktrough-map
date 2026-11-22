@@ -49,6 +49,18 @@ for(const [x,y,z,tx,tz,w,h] of training.windows){
   assert(w>1.18&&w<1.34&&h>1.75&&h<1.81&&Math.abs(Math.hypot(x+58.39,z-21.64)-11.55)<.14);
 }
 assert(training.eye.every(Number.isFinite)&&training.focal>0&&training.depth[1]>training.depth[0]);
+const hall=json('blue-hall.json');
+assert.deepEqual(hall.views.map(p=>p.panorama),['6b6c845d019e43c8baa72dcb93fca777','96a3781d154448d4a1940f50c8aab69e']);
+for(const v of hall.views){
+  assert(v.eye.length===3&&v.eye.every(Number.isFinite)&&v.focal>0&&v.principal.length===2);
+  assert(v.rotation.length===3&&v.rotation.every(row=>row.length===3&&Math.abs(Math.hypot(...row)-1)<.00001));
+}
+const blueAtlas=read('data/blue-hall.webp');
+assert.equal(blueAtlas.subarray(8,16).toString(),'WEBPVP8X');
+assert(blueAtlas[20]&16,'H3 atlas requires radial depths in alpha');
+assert.equal(blueAtlas.readUIntLE(24,3)+1,2048);
+assert.equal(blueAtlas.readUIntLE(27,3)+1,2048);
+assert.equal(read('data/blue-reflectors.webp').subarray(8,12).toString(),'WEBP');
 const trainingFaces=training.surfaces.map(()=>0);
 const freightRole=firstRoom+training.surfaces.length,paintedFaces=new Array(33).fill(0);
 const chamberFaces=require('./chamber.cjs').groups.map(()=>0);

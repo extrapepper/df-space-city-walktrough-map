@@ -137,6 +137,43 @@ const serverViews=[
   {region:'蓝室',label:'二楼机柜区北门',x:47,z:-45.4,probeY:-18.8,yaw:Math.PI,pitch:.015,detail:'穿过北门向左转，沿两列机柜之间的过道往东走。遇到横倒的窄柜，保持移动并按空格起跳。'}
 ];
 function interiorStop(view){return {...viewStop(view),...(view.panorama?{panorama:view.panorama}:{}),...(view.detail?{detail:view.detail}:{})}}
+const blueHall=JSON.parse(fs.readFileSync(path.join(folder,'blue-hall.json')));
+const [southView,northView]=blueHall.views;
+const blueViews=[
+  {label:'试验台南侧货箱旁',x:62.7,z:-49.5,probeY:-29.0,yaw:0,pitch:.48,panorama:southView.panorama,detail:'前面是白色护板和试验仪器。向左走到南梯，沿台阶向东下到坑底。按 M 可查看穿过台架下方的路线。'},
+  {label:'下沉层南梯上口',x:57.5,z:-52.35,probeY:-29.0,yaw:-Math.PI/2,pitch:-.17,panorama:southView.panorama,detail:'沿台阶直走到底，向左转，再向西绕到两道立柱之间。沿通道向北，右转走上另一段楼梯，可回到一楼。'},
+  {label:'仪器台架下通道',x:62.82,z:-54.25,probeY:-33.5,yaw:0,pitch:.09,panorama:northView.panorama,detail:'沿支架之间的通道向北直走。出支架后，前方的楼梯向右上行，通往大厅北侧。'},
+  {label:'下沉层北梯上口',x:71.8,z:-66.73,probeY:-29.0,yaw:Math.PI/2,pitch:-.17,panorama:northView.panorama,detail:'沿北梯向西下到坑底，向左进入台架内的通道。可从对面的南梯回到大厅。'},
+  {label:'试验台北侧',x:62.95,z:-70,probeY:-29.0,yaw:Math.PI,pitch:.47,panorama:northView.panorama,detail:'从这里看四面反射盘背面的加强筋。沿右手的走道向西可绕到试验台另一面，向东则能找到北梯。'}
+];
+function verifyBlueHall(stops){
+  const assert=require('node:assert/strict');
+  const panoramas=JSON.parse(fs.readFileSync(path.join(folder,'room-views.json')))['蓝室'];
+  for(const v of blueViews){
+    assert(panoramas.some(p=>p.id===v.panorama));
+    assert.deepEqual(stops['蓝室'].find(s=>s.label===v.label),interiorStop(v));
+  }
+  const walk=blueHall.walk,points=new Set(walk.map(p=>p.join(',')));
+  for(const v of blueViews)assert(points.has([v.x,v.z].join(',')));
+  for(const margin of [-.28,0,.28]){
+    let y=-30.368,lowest=y,descended=0,climbed=0;
+    for(let i=1;i<walk.length;i++){
+      const [ax,az]=walk[i-1],[bx,bz]=walk[i],len=Math.hypot(bx-ax,bz-az);
+      const dir=new THREE.Vector3((bx-ax)/len,0,(bz-az)/len);
+      for(let j=0;j<=Math.ceil(len/.16);j++){
+        const d=Math.min(j*.16,len),x=ax+dir.x*d+dir.z*margin,z=az+dir.z*d-dir.x*margin;
+        const floor=rays(tiles,new THREE.Vector3(x,y+.34,z),down,.69)[0];
+        assert(floor&&Math.abs(floor.point.y-y)<.18,'Broken H3 floor at '+x+', '+z);
+        const level=floor.point.y;
+        descended+=Math.max(0,y-level);climbed+=Math.max(0,level-y);lowest=Math.min(lowest,level);y=level;
+        assert(!rays(tiles,new THREE.Vector3(x,y+.04,z),up,1.83).length,'Low H3 underpass');
+        for(const height of [.46,1.53])assert(!rays(tiles,new THREE.Vector3(x,y+height,z),dir,.17).length,'Obstructed H3 route');
+      }
+    }
+    assert(Math.abs(lowest+34.848)<.02&&Math.abs(y+30.368)<.02);
+    assert(Math.abs(descended-4.48)<.08&&Math.abs(climbed-4.48)<.08);
+  }
+}
 const suiteViews=[
   {label:'会客厅台阶',x:1.13,z:-13.71,yaw:Math.PI,pitch:.12,panorama:'0ebda5a2944147c39ba3fc88362ab9f1',detail:'沿两座花池之间的七级台阶上行，穿过 OFFICE 门框就进了办公室。转身可以看见中央的 HAAVK 斜柱。'},
   {label:'会客厅 H2 走廊口',x:-11.1,z:-16.50,yaw:Math.PI/2,pitch:.04,panorama:'fbe5ce1483be4de5926aee37dcd4db2b',detail:'穿过 H2 门，正前方是浮力室标志，走廊在这里向右转。回到会客厅后，朝两座花池中间走可以进办公室。'},
@@ -319,6 +356,8 @@ if(process.argv.includes('--check-ladders')){
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
   verifyChamber(stops);
   verifyServerRooms(stops);
+  verifyBlueHall(stops);
+  console.log('Verified the H3 stair descent, passage under the instrument and opposite stair ascent.');
   verifySuite(stops);
   console.log('Verified the H2 and H4 ladder-to-office walks, seven entrance steps and the seating aisle.');
   console.log('Verified the H4 server aisle loop and access through the H1 west, H1 south and H3 north doors.');
@@ -370,6 +409,7 @@ const out={};for(const r of regions){
     out[r.name].push(viewStop({label:'转臂训练舱',x:-62.8,z:15.6,probeY:-28.95,yaw:-2.94,pitch:.14}));
   }
   if(r.name==='蓝室'){
+    out[r.name].unshift(...blueViews.map(interiorStop));
     out[r.name].push(viewStop({label:'下沉平台上沿',x:74,z:-49,probeY:-28.9,yaw:.72,pitch:.46}));
     out[r.name].push(viewStop({label:'试验台上层回廊',x:78.8,z:-69.5,probeY:-18.7,yaw:2.19,pitch:-.21}));
   }

@@ -4,6 +4,24 @@ const chart=mapCanvas.getContext('2d');
 let routeMapOpen=false, mapScale=1, mapX=0, mapZ=25, mapDrag=null;
 const mapPoint=(x,z)=>[mapField.clientWidth/2+(x-mapX)*mapScale,mapField.clientHeight/2+(z-mapZ)*mapScale];
 let selectedLadder=null,selectedSite=null;
+let showBlueWalk=false;
+function setBlueWalk(active){
+  showBlueWalk=active;$('map-blue-walk').setAttribute('aria-pressed',String(active));
+}
+function drawMapWalk(path){
+  chart.save();chart.beginPath();chart.lineJoin='round';chart.lineCap='round';
+  let metres=0;
+  for(const [i,[x,z]] of path.entries()){
+    const [u,v]=mapPoint(x,z);
+    if(!i){chart.moveTo(u,v);continue}
+    chart.lineTo(u,v);metres+=Math.hypot(x-path[i-1][0],z-path[i-1][1]);
+  }
+  chart.strokeStyle='#182321';chart.lineWidth=5.5;chart.stroke();
+  chart.strokeStyle='#ffe09a';chart.lineWidth=2.5;chart.stroke();
+  const [u,v]=mapPoint(...path[path.length-1]);
+  chart.beginPath();chart.arc(u,v,4,0,Math.PI*2);chart.fillStyle='#ffe09a';chart.fill();chart.restore();
+  return metres;
+}
 function placeExtractionMarkers(w,h){
   const layer=$('map-extraction');
   if(!layer.childElementCount)for(const site of extractionSites){
@@ -12,7 +30,7 @@ function placeExtractionMarkers(w,h){
     button.title=site.name;button.setAttribute('aria-label',site.name);
     const symbol=site.panel?'<path d="M5 16h10M8 12l5-7"/><circle cx="14" cy="4" r="2"/>':'<path d="M9 3H4v14h5m1-7h8m-4-4 4 4-4 4"/>';
     button.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true">'+symbol+'</svg>';
-    button.onclick=()=>{selectedLadder=null;selectedSite=selectedSite===site?null:site;paintRouteMap()};
+    button.onclick=()=>{setBlueWalk(false);selectedLadder=null;selectedSite=selectedSite===site?null:site;paintRouteMap()};
     layer.append(button);
   }
   for(const [i,site] of extractionSites.entries()){
@@ -37,7 +55,7 @@ function placeLadderMarkers(w,h){
     const button=document.createElement('button');button.className='map-ladder';
     button.title=route.region+' · '+route.name;button.setAttribute('aria-label',button.title);
     button.innerHTML='<svg viewBox="0 0 16 18" aria-hidden="true"><path d="M4 2v14m8-14v14M4 5h8M4 9h8M4 13h8"/></svg>';
-    button.onclick=()=>{selectedSite=null;selectedLadder=selectedLadder===route?null:route;paintRouteMap()};
+    button.onclick=()=>{setBlueWalk(false);selectedSite=null;selectedLadder=selectedLadder===route?null:route;paintRouteMap()};
     layer.append(button);
   }
   for(const [i,route] of ladders.entries()){
@@ -52,18 +70,7 @@ function placeLadderMarkers(w,h){
     const r=selectedLadder;
     info.textContent=r.name+'　'+(r.water?'水面 ':'梯脚 ')+r.bottom.toFixed(1)+' → 上口 '+r.top.toFixed(1)+' m'+(r.headroom?'　蹲姿通行':'');
     if(r.officePath){
-      const path=r.officePath;
-      chart.save();chart.beginPath();chart.lineJoin='round';chart.lineCap='round';
-      let metres=0;
-      for(const [i,[x,z]] of path.entries()){
-        const [u,v]=mapPoint(x,z);
-        if(!i){chart.moveTo(u,v);continue}
-        chart.lineTo(u,v);metres+=Math.hypot(x-path[i-1][0],z-path[i-1][1]);
-      }
-      chart.strokeStyle='#182321';chart.lineWidth=5.5;chart.stroke();
-      chart.strokeStyle='#ffe09a';chart.lineWidth=2.5;chart.stroke();
-      const [u,v]=mapPoint(...path[path.length-1]);
-      chart.beginPath();chart.arc(u,v,4,0,Math.PI*2);chart.fillStyle='#ffe09a';chart.fill();chart.restore();
+      const metres=drawMapWalk(r.officePath);
       info.textContent+='　沿黄线步行约 '+Math.round(metres)+' m 到总裁办公室';
     }
   }
@@ -78,7 +85,7 @@ function fitRouteMap(){
 }
 function openRouteMap(){
   if(!glReady||isFlat||view==='orbit'||routeMapOpen)return;
-  routeMapOpen=true;mapPanel.hidden=false;
+  routeMapOpen=true;mapPanel.hidden=false;setBlueWalk(false);
   releaseMouseLook();pointers.clear();mapDrag=null;
   document.activeElement?.blur?.();
   fitRouteMap();$('map-close').focus({preventScroll:true});dirty=true;
@@ -111,6 +118,7 @@ function paintRouteMap(){
     const [,v]=mapPoint(0,z);chart.moveTo(0,v);chart.lineTo(w,v);
   }
   chart.stroke();
+  if(showBlueWalk&&blueHallWalk)drawMapWalk(blueHallWalk);
   placeLadderMarkers(w,h);
   placeExtractionMarkers(w,h);
   chart.font='600 13px "Microsoft YaHei",sans-serif';chart.textAlign='center';chart.lineJoin='round';
@@ -132,6 +140,7 @@ function paintRouteMap(){
 function updateMapPosition(){
   if(!routeMapOpen)return;
   const {x,y,z}=camera.position,[px,py]=mapPoint(x,z);
+  $('map-blue-walk').hidden=!blueHallWalk||(!showBlueWalk&&(x<51||x>83||z< -74||z> -44||y< -35||y> -13));
   const marker=$('map-player');
   marker.hidden=px<0||py<0||px>mapField.clientWidth||py>mapField.clientHeight;
   marker.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
@@ -146,6 +155,16 @@ function updateMapPosition(){
 $('locator').onclick=openRouteMap;$('map-close').onclick=()=>closeRouteMap(true);
 $('map-practice').onchange=e=>{setPractice(e.target.value);$('map-close').focus({preventScroll:true})};
 $('map-follow').onclick=()=>{mapX=camera.position.x;mapZ=camera.position.z;mapScale=Math.max(mapScale,2.8);paintRouteMap()};
+$('map-blue-walk').onclick=()=>{
+  setBlueWalk(!showBlueWalk);
+  if(showBlueWalk){
+    selectedSite=null;selectedLadder=null;
+    const xs=blueHallWalk.map(p=>p[0]),zs=blueHallWalk.map(p=>p[1]);
+    mapX=(Math.min(...xs)+Math.max(...xs))/2;mapZ=(Math.min(...zs)+Math.max(...zs))/2;
+    mapScale=Math.min(10,mapField.clientWidth/(Math.max(...xs)-Math.min(...xs)+14),mapField.clientHeight/(Math.max(...zs)-Math.min(...zs)+14));
+  }
+  paintRouteMap();
+};
 $('map-fit').onclick=fitRouteMap;
 $('map-plus').onclick=()=>scaleRouteMap(1.4);$('map-minus').onclick=()=>scaleRouteMap(1/1.4);
 mapField.onpointerdown=e=>{if(mapDrag||e.target.closest('button'))return;mapField.setPointerCapture(e.pointerId);mapDrag={id:e.pointerId,x:e.clientX,y:e.clientY}};

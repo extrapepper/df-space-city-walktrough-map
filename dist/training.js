@@ -10,13 +10,14 @@ const trainingVertex=`varying vec3 site;
 function makeTrainingMaterial(kind){
   return new THREE.ShaderMaterial({
     extensions:{derivatives:true},side:THREE.DoubleSide,
-    uniforms:{...trainingUniforms,kind:{value:kind}},
+    uniforms:{...trainingUniforms,...blueHallUniforms,kind:{value:kind}},
     vertexShader:trainingVertex,
     fragmentShader:`varying vec3 site;
       uniform float kind,samplesReady,photoReady;
       const float arm=1.,portal=2.,lettering=3.,lining=4.,platformKind=6.;
-      uniform sampler2D samples,photo;
+      uniform sampler2D samples,photo,blueReflectors;
       uniform vec3 photoEye;uniform mat3 photoAxes;uniform vec2 photoFocal,photoCenter,photoDepth,photoSize;
+      ${kind>=4?blueHallProjection:''}
       vec3 inkSample(vec2 start,vec2 size,vec2 uv,vec3 base){
         if(samplesReady<.5)return base;
         return texture2D(samples,(start+.5+(size-1.)*clamp(uv,0.,1.))/vec2(768.,436.)).rgb;
@@ -128,21 +129,21 @@ function makeTrainingMaterial(kind){
         bool upper=p.y>.6;vec2 disc=vec2(sign(p.x)*(upper?3.385:4.18),upper?2.48:-1.48);
         vec2 q=(p.xy-disc)/1.79;
         if(length(q)<1.055&&abs(p.x)>1.44){
-          vec3 back=vec3(.17,.19,.22);
+          vec3 metal=vec3(.25,.31,.41);
           float surfaceZ=upper?-.33:-.97;
-          if(p.z<surfaceZ-.04||n.z<.45)return (back+.09*abs(n.y))*lit;
-          vec2 grid=vec2(q.x+q.y,q.x-q.y)*.5+.5;
-          vec3 cell=inkSample(vec2(p.x<0.?4.:157.,154.),vec2(144.),grid,vec3(.65,.41,.28));
-          float coverage=1.-smoothstep(.90,1.,abs(q.x)+abs(q.y));
-          float etching=max(seam(grid.x*12.,.027),seam(grid.y*12.,.027));
-          return mix(back,cell*(1.-.22*etching),coverage)*lit;
+          if(abs(n.z)<.28)return (metal+.13*abs(n.y))*lit;
+          float rear=step(p.z,surfaceZ-.04);
+          vec2 local=clamp(q*vec2(.5,-.5)+.5,0.,1.);
+          vec2 uv=(vec2(step(0.,p.x),rear)*256.+.5+255.*local)/512.;
+          vec3 cover=texture2D(blueReflectors,uv).rgb;
+          return mix(metal,cover,step(.01,dot(cover,vec3(1.))))*(.96+.06*abs(n.z));
         }
         vec2 face=abs(n.y)>.65?p.xz:vec2(abs(n.x)>.65?p.z:p.x,p.y);
         vec2 uv=fract(face*.60);vec3 housing;
         if(y< -25.05){
-          housing=vec3(.12,.15,.18)*(.85+.22*max(n.y,0.));
+          housing=y< -27.90?vec3(.21,.26,.33):vec3(.61,.65,.74);
         }else if(y< -23.35){
-          housing=inkSample(vec2(560.,332.),vec2(98.,76.),uv,vec3(.44,.25,.25));
+          housing=vec3(.58,.62,.70)*(.92+.08*max(n.y,0.));
         }else{
           housing=inkSample(vec2(440.,332.),vec2(108.,76.),uv,vec3(.54,.41,.16));
           housing=mix(housing,vec3(.51,.38,.15),.52);
@@ -173,6 +174,7 @@ function makeTrainingMaterial(kind){
             }
           }
         }
+        ${kind>=4?'color=blueHallFinish(color,site,n);':''}
         gl_FragColor=vec4(color,1.);
       }`
   });

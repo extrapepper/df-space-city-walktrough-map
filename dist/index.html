@@ -29,7 +29,7 @@
 <section id="route-map" hidden aria-label="实时大地图">
   <div class="map-header"><h2>航天基地 <small>实时大地图</small></h2><label class="map-practice">拉闸练习 <select id="map-practice"><option value="black">S11 · 黑室闸</option><option value="buoyancy">S11 · 浮力室闸</option><option value="legacy">2024 · 双闸</option></select></label><button id="map-close" aria-label="关闭大地图">返回漫游 <kbd>M</kbd></button></div>
   <div id="map-field"><canvas id="map-chart" aria-label="北向上的航天基地全图"></canvas><div id="map-ladders"></div><div id="map-extraction" aria-label="撤离点与练习电闸"></div><div id="map-player" aria-label="我的位置"><i></i><span>你的位置</span></div><output id="map-ladder-info" hidden></output><div id="map-site-info" hidden><strong></strong><span></span><small></small></div></div>
-  <div class="map-footer"><output id="map-position"></output><div><button id="map-minus" aria-label="缩小大地图">−</button><button id="map-plus" aria-label="放大大地图">＋</button><button id="map-follow">定位</button><button id="map-fit">全图</button></div></div>
+  <div class="map-footer"><output id="map-position"></output><div><button id="map-blue-walk" aria-pressed="false" hidden>下沉层路线</button><button id="map-minus" aria-label="缩小大地图">−</button><button id="map-plus" aria-label="放大大地图">＋</button><button id="map-follow">定位</button><button id="map-fit">全图</button></div></div>
 </section>
 <div id="busy" role="status"><span></span><b>正在载入地形</b><small id="load-status">读取航天基地场景</small></div>
 <div id="toast" role="status" hidden></div>
@@ -38,10 +38,10 @@
 <dialog id="dialog"><div class="dialog-title"><h2></h2><button id="close-dialog" class="close" aria-label="关闭">×</button></div><div id="dialog-body"></div></dialog>
 <dialog id="room-dialog" aria-labelledby="room-title">
 <div class="dialog-title"><h2 id="room-title"></h2><button class="close" id="close-rooms" aria-label="返回三维地图">×</button></div>
-<div class="room-controls"><label for="room-stop">取景点</label><select id="room-stop"></select><a id="room-link" target="_blank" rel="noopener noreferrer">在原站打开</a></div>
+<div class="room-controls"><label for="room-stop">取景点</label><select id="room-stop"></select><button class="visit-photo" id="room-fly" hidden>从这个位置自由飞行</button><a id="room-link" target="_blank" rel="noopener noreferrer">在原站打开</a></div>
 <div id="room-screen"></div>
 <p class="room-source">三角洲工坊 · 2025 年室内全景。拖动环顾，关闭后回到地图。</p>
 </dialog>
 <script src="vendor/three.min.js"></script><script src="vendor/bvh.js"></script>
-<script src="ui.js"></script><script src="lab.js"></script><script src="vending.js"></script><script src="training.js"></script><script src="extraction.js"></script><script src="freight.js"></script><script src="chamber.js"></script><script src="foyer.js"></script><script src="servers.js"></script><script src="command.js"></script><script src="surfaces.js"></script><script src="suite.js"></script><script src="office.js"></script><script src="scene.js"></script><script src="basin.js"></script><script src="water.js"></script><script src="traversal.js"></script><script src="route-map.js"></script><script src="app.js"></script>
+<script src="ui.js"></script><script src="lab.js"></script><script src="vending.js"></script><script src="blue-hall.js"></script><script src="training.js"></script><script src="extraction.js"></script><script src="freight.js"></script><script src="chamber.js"></script><script src="foyer.js"></script><script src="servers.js"></script><script src="command.js"></script><script src="surfaces.js"></script><script src="suite.js"></script><script src="office.js"></script><script src="scene.js"></script><script src="basin.js"></script><script src="water.js"></script><script src="traversal.js"></script><script src="route-map.js"></script><script src="app.js"></script>
 </body></html>
