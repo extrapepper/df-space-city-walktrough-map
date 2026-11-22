@@ -4,9 +4,42 @@ const chart=mapCanvas.getContext('2d');
 let routeMapOpen=false, mapScale=1, mapX=0, mapZ=25, mapDrag=null;
 const mapPoint=(x,z)=>[mapField.clientWidth/2+(x-mapX)*mapScale,mapField.clientHeight/2+(z-mapZ)*mapScale];
 let selectedLadder=null,selectedSite=null;
-let showBlueWalk=false;
-function setBlueWalk(active){
-  showBlueWalk=active;$('map-blue-walk').setAttribute('aria-pressed',String(active));
+let activeMapWalk=null,apartmentPlan=null,apartmentLayer=null;
+function setMapWalk(path){
+  activeMapWalk=path;$('map-blue-walk').setAttribute('aria-pressed',String(Boolean(path)));
+}
+function nearbyMapWalk({x,y,z}){
+  if(apartmentPlan&&x>=-220&&x<=-201&&z>=-173&&z<=-155&&y>=-28.55&&y<=-24.2)return apartmentPlan.walk;
+  if(x>=51&&x<=83&&z>=-74&&z<=-44&&y>=-35&&y<=-13)return blueHallWalk;
+  return null;
+}
+function setApartmentPlan(plan){
+  const layer=document.createElement('canvas');layer.width=plan.cols;layer.height=plan.rows;
+  const ctx=layer.getContext('2d');
+  ctx.fillStyle='#192022';ctx.fillRect(0,0,plan.cols,plan.rows);
+  for(const [row,start,length,kind] of plan.bands){
+    ctx.fillStyle=kind===2?'#bec6bb':'#424e4c';ctx.fillRect(start,row,length,1);
+  }
+  apartmentPlan=plan;apartmentLayer=layer;
+  if(routeMapOpen)paintRouteMap();
+}
+function drawApartmentPlan(){
+  const {x0,z0,cols,rows,step}=apartmentPlan,[x,y]=mapPoint(x0,z0);
+  chart.save();chart.imageSmoothingEnabled=false;
+  chart.drawImage(apartmentLayer,x,y,cols*step*mapScale,rows*step*mapScale);
+  const door=balconyDoors.find(d=>d.id===7110);
+  if(door){
+    const {min,max}=door.bounds,[u,v]=mapPoint(min.x,(min.z+max.z)/2);
+    chart.strokeStyle=door.open?'#8dd8bc':'#f1ad73';chart.lineWidth=3;
+    chart.beginPath();chart.moveTo(u,v);chart.lineTo(u+(max.x-min.x)*mapScale,v);chart.stroke();
+  }
+  if(mapScale>=12){
+    chart.font='600 12px "Microsoft YaHei",sans-serif';chart.textAlign='center';chart.lineWidth=3;chart.strokeStyle='#283231';chart.fillStyle='#e4ece0';
+    for(const [text,x,z] of [['窗边卧室',-214.25,-165.9],['隔壁卧室',-207.15,-165.9],['共用阳台',-211,-171.01],['走廊',-213.4,-156.90],['楼板缺口',-206.0,-158.23]]){
+      const [u,v]=mapPoint(x,z);chart.strokeText(text,u,v);chart.fillText(text,u,v);
+    }
+  }
+  chart.restore();
 }
 function drawMapWalk(path){
   chart.save();chart.beginPath();chart.lineJoin='round';chart.lineCap='round';
@@ -18,6 +51,13 @@ function drawMapWalk(path){
   }
   chart.strokeStyle='#182321';chart.lineWidth=5.5;chart.stroke();
   chart.strokeStyle='#ffe09a';chart.lineWidth=2.5;chart.stroke();
+  if(path===apartmentPlan?.walk&&mapScale>=8){
+    for(const i of [4,7,8]){
+      const [ax,az]=path[i-1],[bx,bz]=path[i],[cx,cy]=mapPoint((ax+bx)/2,(az+bz)/2);
+      chart.save();chart.translate(cx,cy);chart.rotate(Math.atan2(bz-az,bx-ax));
+      chart.beginPath();chart.moveTo(-4,-4);chart.lineTo(1,0);chart.lineTo(-4,4);chart.stroke();chart.restore();
+    }
+  }
   const [u,v]=mapPoint(...path[path.length-1]);
   chart.beginPath();chart.arc(u,v,4,0,Math.PI*2);chart.fillStyle='#ffe09a';chart.fill();chart.restore();
   return metres;
@@ -30,7 +70,7 @@ function placeExtractionMarkers(w,h){
     button.title=site.name;button.setAttribute('aria-label',site.name);
     const symbol=site.panel?'<path d="M5 16h10M8 12l5-7"/><circle cx="14" cy="4" r="2"/>':'<path d="M9 3H4v14h5m1-7h8m-4-4 4 4-4 4"/>';
     button.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true">'+symbol+'</svg>';
-    button.onclick=()=>{setBlueWalk(false);selectedLadder=null;selectedSite=selectedSite===site?null:site;paintRouteMap()};
+    button.onclick=()=>{setMapWalk(null);selectedLadder=null;selectedSite=selectedSite===site?null:site;paintRouteMap()};
     layer.append(button);
   }
   for(const [i,site] of extractionSites.entries()){
@@ -55,7 +95,7 @@ function placeLadderMarkers(w,h){
     const button=document.createElement('button');button.className='map-ladder';
     button.title=route.region+' · '+route.name;button.setAttribute('aria-label',button.title);
     button.innerHTML='<svg viewBox="0 0 16 18" aria-hidden="true"><path d="M4 2v14m8-14v14M4 5h8M4 9h8M4 13h8"/></svg>';
-    button.onclick=()=>{setBlueWalk(false);selectedSite=null;selectedLadder=selectedLadder===route?null:route;paintRouteMap()};
+    button.onclick=()=>{setMapWalk(null);selectedSite=null;selectedLadder=selectedLadder===route?null:route;paintRouteMap()};
     layer.append(button);
   }
   for(const [i,route] of ladders.entries()){
@@ -85,7 +125,7 @@ function fitRouteMap(){
 }
 function openRouteMap(){
   if(!glReady||isFlat||view==='orbit'||routeMapOpen)return;
-  routeMapOpen=true;mapPanel.hidden=false;setBlueWalk(false);
+  routeMapOpen=true;mapPanel.hidden=false;setMapWalk(null);
   releaseMouseLook();pointers.clear();mapDrag=null;
   document.activeElement?.blur?.();
   fitRouteMap();$('map-close').focus({preventScroll:true});dirty=true;
@@ -96,7 +136,7 @@ function closeRouteMap(resumeLook){
   if(resumeLook&&view==='walk')captureMouseLook();
 }
 function scaleRouteMap(factor,px=mapField.clientWidth/2,py=mapField.clientHeight/2){
-  const old=mapScale;mapScale=clamp(old*factor,.16,12);
+  const old=mapScale;mapScale=clamp(old*factor,.16,activeMapWalk&&activeMapWalk===apartmentPlan?.walk?32:12);
   mapX+=(px-mapField.clientWidth/2)*(1/old-1/mapScale);
   mapZ+=(py-mapField.clientHeight/2)*(1/old-1/mapScale);
   paintRouteMap();
@@ -118,7 +158,10 @@ function paintRouteMap(){
     const [,v]=mapPoint(0,z);chart.moveTo(0,v);chart.lineTo(w,v);
   }
   chart.stroke();
-  if(showBlueWalk&&blueHallWalk)drawMapWalk(blueHallWalk);
+  if(activeMapWalk){
+    if(activeMapWalk===apartmentPlan?.walk)drawApartmentPlan();
+    drawMapWalk(activeMapWalk);
+  }
   placeLadderMarkers(w,h);
   placeExtractionMarkers(w,h);
   chart.font='600 13px "Microsoft YaHei",sans-serif';chart.textAlign='center';chart.lineJoin='round';
@@ -140,7 +183,12 @@ function paintRouteMap(){
 function updateMapPosition(){
   if(!routeMapOpen)return;
   const {x,y,z}=camera.position,[px,py]=mapPoint(x,z);
-  $('map-blue-walk').hidden=!blueHallWalk||(!showBlueWalk&&(x<51||x>83||z< -74||z> -44||y< -35||y> -13));
+  const available=activeMapWalk||nearbyMapWalk(camera.position),walkButton=$('map-blue-walk');
+  walkButton.hidden=!available;
+  if(available){
+    const label=apartmentPlan&&available===apartmentPlan.walk?'宿舍阳台路线':'下沉层路线';
+    if(walkButton.textContent!==label)walkButton.textContent=label;
+  }
   const marker=$('map-player');
   marker.hidden=px<0||py<0||px>mapField.clientWidth||py>mapField.clientHeight;
   marker.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
@@ -156,12 +204,13 @@ $('locator').onclick=openRouteMap;$('map-close').onclick=()=>closeRouteMap(true)
 $('map-practice').onchange=e=>{setPractice(e.target.value);$('map-close').focus({preventScroll:true})};
 $('map-follow').onclick=()=>{mapX=camera.position.x;mapZ=camera.position.z;mapScale=Math.max(mapScale,2.8);paintRouteMap()};
 $('map-blue-walk').onclick=()=>{
-  setBlueWalk(!showBlueWalk);
-  if(showBlueWalk){
+  setMapWalk(activeMapWalk?null:nearbyMapWalk(camera.position));
+  if(activeMapWalk){
     selectedSite=null;selectedLadder=null;
-    const xs=blueHallWalk.map(p=>p[0]),zs=blueHallWalk.map(p=>p[1]);
+    const xs=activeMapWalk.map(p=>p[0]),zs=activeMapWalk.map(p=>p[1]);
     mapX=(Math.min(...xs)+Math.max(...xs))/2;mapZ=(Math.min(...zs)+Math.max(...zs))/2;
-    mapScale=Math.min(10,mapField.clientWidth/(Math.max(...xs)-Math.min(...xs)+14),mapField.clientHeight/(Math.max(...zs)-Math.min(...zs)+14));
+    const apartment=activeMapWalk===apartmentPlan?.walk,margin=apartment?6:14;
+    mapScale=Math.min(apartment?24:10,mapField.clientWidth/(Math.max(...xs)-Math.min(...xs)+margin),mapField.clientHeight/(Math.max(...zs)-Math.min(...zs)+margin));
   }
   paintRouteMap();
 };

@@ -168,6 +168,7 @@ async function initialize3D(){
   architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets,training,dorm);
   movingDoorRole=architecturalMaterials.indexOf(dormantDoorSource);
   installDorm(dorm,dormCamera);
+  jsonFile('dorm-plan.json').then(setApartmentPlan).catch(error=>console.warn('宿舍楼层图加载失败',error));
   loadBedroomPhoto().catch(error=>console.warn('宿舍卧室贴图加载失败',error));
   installExtraction(...await Promise.all([jsonFile('extraction.json'),jsonFile('switch-housing.json')]));
   installTrainingRooms(training).catch(error=>console.warn('训练室材质加载失败',error));

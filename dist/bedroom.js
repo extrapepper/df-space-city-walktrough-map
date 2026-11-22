@@ -33,7 +33,10 @@ function bedroomFurnishingsMaterial(){
           kind=4.;
         }
         else if(k>5.5&&k<6.5){paint=c;}
-        if(kind>.5)paint=fromRoomPhoto(paint,p,viewer,kind);
+        if(kind>.5){
+          vec3 registered=fromRoomPhoto(paint,p,viewer,kind);
+          paint=mix(paint,registered,kind==4. ? .46 : 1.);
+        }
         gl_FragColor=vec4(paint,1.);
       }`
   });
@@ -80,16 +83,22 @@ function bedroomFurnishings(){
   box(-.38,.90,1.48,.57,.10,2.62,1,wood);
   for(let i=0;i<5;i++)box(-.25,.91+(i%3)*.041,3.7+i*.078,.23,.18+(i%3)*.082,.052,1,[.15+.015*i,.144+.013*i,.145+.009*i],[-.08*(i%2),0,0]);
   const rug=[.384,.343,.291],fabric=[.348,.332,.321];
-  function carpet(x,z,rx,rz){
-    const geo=new THREE.CylinderGeometry(1,1,.022,52);geo.scale(rx,1,rz);add(geo,4,rug,[x,.020,z]);
+  function carpet(x,z,rx,rz,angle){
+    const geo=new THREE.CylinderGeometry(1,1,.022,52);geo.scale(rx,1,rz);add(geo,4,rug,[x,.020,z],[0,angle,0]);
   }
-  carpet(-2.59,1.66,1.87,1.41);carpet(-1.92,5.54,1.39,1.68);
+  // Ellipses fitted to the visible carpet edges on the calibrated floor plane.
+  carpet(-3.69,1.90,.64,1.07,-2.45);carpet(-2.13,5.52,.97,1.39,-2.677);
   rounded(-1.99,.248,1.65,3.03,.43,2.06,2,[.242,.228,.222],[0,0,0]);
   rounded(-1.98,.44,1.64,2.99,.22,2.10,2,[.342,.328,.31],[0,0,0]);
   rounded(-2.20,.505,1.66,2.69,.39,2.19,2,fabric,[0,0,0],.18);
   rounded(-.997,.632,1.17,.76,.234,.94,2,[.321,.304,.29],[.028,.07,-.08],.12);
   rounded(-.99,.622,2.12,.75,.226,.91,2,[.307,.291,.28],[-.014,-.04,-.09],.11);
   rounded(-3.50,.127,3.73,1.00,.229,.48,5,[.292,.267,.251],[.018,-.44,.09],.24);
+  const linen=[.69,.67,.636],charcoal=[.19,.173,.169];
+  rounded(-4.40,.035,2.22,.67,.055,.36,8,linen,[.025,-.69,.028],.44);
+  rounded(-4.30,.043,2.42,.43,.064,.25,8,linen,[-.04,-.35,.08],.48);
+  rounded(-4.045,.030,3.53,.79,.049,.23,8,charcoal,[.012,-.46,-.047],.50);
+  rounded(-4.20,.031,3.43,.46,.052,.12,8,charcoal,[.022,.31,-.04],.62);
   // A light upholstered desk chair has tipped onto the rug.
   const seat=[.59,.551,.474],metal=[.377,.367,.346];
   rounded(-1.51,.30,5.43,.15,.47,.49,3,seat,[.055,-.04,-.16]);

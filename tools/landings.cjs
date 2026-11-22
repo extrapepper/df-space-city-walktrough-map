@@ -152,7 +152,7 @@ function dormStudyStop(room,i){
 }
 const dormAccess=[
   {label:'东栋卧室走廊口',x:-216.72,z:-158.2,probeY:-27.5,yaw:0,pitch:-.04,detail:'直行跨过矮门槛进入卧室，床和书桌在右边。继续走到窗边，对准左侧的阳台门按 F，再从门框中间通过。'},
-  {label:'东栋共用阳台',x:-216.9,z:-170.45,probeY:-27.1,yaw:-Math.PI/2,pitch:-.03,detail:'阳台连接两间卧室。沿窗走到远端，可从另一间卧室的门洞回到走廊。'}
+  {label:'东栋共用阳台',x:-216.9,z:-170.45,probeY:-27.1,yaw:-Math.PI/2,pitch:-.03,detail:'沿窗走到远端可进隔壁卧室。按 M 点“宿舍阳台路线”，沿黄线穿过卧室，靠右通过走廊门洞。'}
 ];
 function verifyDorm(stops){
   const assert=require('node:assert/strict');
@@ -430,6 +430,7 @@ if(process.argv.includes('--check-ladders')){
   verifyPalmWalks(stops);
   console.log('Verified original dorm and B1 trunks, four forecourt tree bases and the central stairway.');
   verifyDorm(stops);
+  require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(path.join(folder,'dorm-plan.json'))),require('./dorm-plan.cjs').sampleApartment(tiles,rays,THREE));
   console.log('Verified three apartment balconies, their native handrails, sliding doors and five walking starts.');
   verifyChamber(stops);
   verifyServerRooms(stops);
@@ -447,6 +448,7 @@ if(process.argv.includes('--check-ladders')){
   console.log('Verified extraction platforms, switch mounts and walking sightlines.');
   return;
 }
+fs.writeFileSync(path.join(folder,'dorm-plan.json'),JSON.stringify(require('./dorm-plan.cjs').sampleApartment(tiles,rays,THREE)));
 fs.writeFileSync(ladderFile,JSON.stringify(ladders));
 const out={};for(const r of regions){
   out[r.name]=buildStops(r);
