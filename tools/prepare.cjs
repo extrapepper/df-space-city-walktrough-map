@@ -194,6 +194,9 @@ async function main(){
   fs.writeFileSync(path.join(out,'basin.gz'),zlib.gzipSync(JSON.stringify(basin)));
   fs.writeFileSync(path.join(out,'command-screens.json'),JSON.stringify(require('./command.cjs').screenPrototype(parts)));
   fs.writeFileSync(path.join(out,'server-terminals.json'),JSON.stringify(require('./servers.cjs').terminalFrames(parts)));
+  const offshoreParts=[15184,15253].map(id=>parts.find(part=>part.instance===id));
+  require('node:assert/strict').deepEqual(offshoreParts.map(part=>part.id),[1575,1587]);
+  fs.writeFileSync(path.join(out,'offshore.gz'),zlib.gzipSync(pack(offshoreParts,false,{}),{level:8}));
   const manifest=[];
   const overview=[];
   const surfaces={};

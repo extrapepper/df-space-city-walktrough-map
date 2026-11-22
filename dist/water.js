@@ -11,16 +11,16 @@ function installHarbor(buffer){
   const map=new THREE.DataTexture(pixels,size,size,gl.capabilities.isWebGL2?THREE.RedFormat:THREE.LuminanceFormat);
   map.needsUpdate=true;
   const waterMaterial=new THREE.ShaderMaterial({
-    side:THREE.DoubleSide,transparent:true,depthWrite:false,uniforms:{footprint:{value:map}},
+    side:THREE.DoubleSide,transparent:true,depthWrite:false,uniforms:{footprint:{value:map},coast:horizonUniforms.outdoor,harborSky},
     vertexShader:`varying vec2 pixel;varying vec3 world;
       void main(){pixel=vec2(uv.x,1.-uv.y);world=(modelMatrix*vec4(position,1.)).xyz;
       gl_Position=projectionMatrix*viewMatrix*vec4(world,1.);}`,
-    fragmentShader:`uniform sampler2D footprint;varying vec2 pixel;varying vec3 world;
+    fragmentShader:`uniform sampler2D footprint;uniform float coast;varying vec2 pixel;varying vec3 world;
+      ${harborLightShader}
       void main(){if(texture2D(footprint,pixel).r<.5)discard;
-      vec2 p=world.xz;float ripple=sin(p.y*1.3+sin(p.x*.7))*sin(p.x*.15+p.y*.4);
-      float glancing=pow(1.-abs(normalize(cameraPosition-world).y),3.);
-      vec3 color=mix(vec3(.095,.22,.22),vec3(.34,.44,.44),glancing*.62)+ripple*.012;
-      gl_FragColor=gl_FrontFacing?vec4(color,.91):vec4(.30,.50,.48,.48);}`
+      vec3 color=harborColor(world,cameraPosition,coast);
+      float alpha=.91+.09*coast*smoothstep(130.,380.,distance(world,cameraPosition));
+      gl_FragColor=gl_FrontFacing?vec4(color,alpha):vec4(.30,.50,.48,.48);}`
   });
   const width=size*spacing,center=origin+width/2;
   const surface=new THREE.Mesh(new THREE.PlaneGeometry(width,width),waterMaterial);
@@ -44,6 +44,8 @@ function updateImmersion(){
   const tint=body&&body===pool?poolBlue:underwaterColor;
   material.uniforms.immersionTint.value.copy(tint);
   scene.background=immersed?tint:null;
+  horizonUniforms.outdoor.value=Number(!!horizonScenery&&!immersed&&view!=='orbit');
+  if(horizonScenery)horizonScenery.visible=!!horizonUniforms.outdoor.value;
   if(swimming!==afloat){
     swimming=afloat;
     if(swimming&&!climbing){crouched=false;crouchToggle=false}

@@ -41,6 +41,7 @@ float roof(vec2 p){
  return (dot(packedHeight.rg,vec2(255.,65280.))-32768.)*.01;
 }
 ${architecturalSurfaces}
+${coastGroundShader}
 ${labProjection}
 ${blueHallProjection}
 vec3 registeredSurface(vec3 shaded, vec3 normal) {
@@ -104,7 +105,9 @@ void main(){
  base*=mix(vec3(1.),mix(vec3(.68,.76,.91),vec3(.45,.56,.83),smoothstep(-31.,-25.,world.y)),blueLight);
  base=blueHallFinish(base,world,n);
  float fall=smoothstep(360.,650.,length((world.xz-vec2(0.,22.))*vec2(1.18,.9)));
- base=mix(base,vec3(.115,.153,.135),fall*.89);
+ base=mix(base,vec3(.115,.153,.135),fall*.89*(1.-outdoor));
+ if(category<.5)base=coastGroundColor(base,world,n);
+ base=mix(base,vec3(.70,.74,.73),outdoor*.34*smoothstep(215.,900.,distance(cameraPosition,world)));
  float wetPath=distance(cameraPosition,world)*clamp((immersionLevel-cameraPosition.y)/max(.001,world.y-cameraPosition.y),0.,1.);
  float haze=submerged*(1.-exp(-.046*wetPath));
  gl_FragColor=vec4(mix(base,immersionTint,haze),1.);
@@ -156,7 +159,7 @@ async function initialize3D(){
   const texture=new THREE.DataTexture(rgba,1024,1024);texture.needsUpdate=true;
   material=new THREE.ShaderMaterial({vertexShader,fragmentShader,side:THREE.DoubleSide,extensions:{derivatives:true},uniforms:{chart:{value:photo},elevation:{value:texture},contours:{value:1},colors:{value:palette.map(a=>new THREE.Vector3(...a))}}});
   material.defines={SURVEY_COUNT:1};
-  Object.assign(material.uniforms,labUniforms,blueHallUniforms);
+  Object.assign(material.uniforms,labUniforms,blueHallUniforms,horizonUniforms);
   Object.assign(material.uniforms,{forecourtSteps:{value:null},forecourtReady:{value:0}});
   Object.assign(material.uniforms,{
     surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},office2024,
@@ -194,6 +197,7 @@ async function initialize3D(){
   if(p!==overview.byteLength)throw Error('场景分区索引不一致');
   THREE.Mesh.prototype.raycast=MeshBVHLib.acceleratedRaycast;
   installHarbor(water);
+  horizonLoading=installHorizon().catch(error=>console.warn('室外远景加载失败',error));
   installPool(JSON.parse(new TextDecoder().decode(basin)));
   installOffice().catch(error=>console.warn('总裁室陈设加载失败',error));
   installSuite().catch(error=>console.warn('总裁室会客厅加载失败',error));
@@ -227,7 +231,7 @@ async function loadSurveyTextures(){
 }
 function visitSurvey(pose){
   changeView('fly');
-  setOfficeGlobe(pose===surveyViews.get('ceo'));
+  setOfficeGlobe(pose===surveyViews.get('ceo')||pose===surveyViews.get('office-outlook'));
   setLaunchReturn(pose===returnStudy?.pose?'photo':false);
   camera.position.fromArray(pose.eye);
   const [right,downward,forward]=pose.rotation;

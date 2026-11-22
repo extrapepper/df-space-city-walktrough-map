@@ -454,6 +454,17 @@ if(process.argv.includes('--check-ladders')){
   }
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
+  const outlook=stops['总裁室'].find(s=>s.outlook);
+  const standingEye=new THREE.Vector3(outlook.x,outlook.y+1.70,outlook.z);
+  const windowFloor=rays(tiles,standingEye,down,2)[0];
+  if(!windowFloor||Math.abs(windowFloor.point.y-outlook.y)>.01)throw Error('Missing floor at south office window');
+  const {mastSpacing}=JSON.parse(fs.readFileSync(path.join(folder,'horizon.json')));
+  for(let i=0;i<=3;i++){
+    const tip=new THREE.Vector3(-135,103.1,368).addScaledVector(new THREE.Vector3(...mastSpacing),i);
+    const pane=rays(tiles,standingEye,tip.sub(standingEye).normalize(),3)[0]?.point;
+    if(!pane||Math.abs(pane.z-19.026)>.014||Math.abs((pane.x-1.18)/2.55-Math.round((pane.x-1.18)/2.55))*2.55<.065)
+      throw Error('South office window sightline crosses a mullion');
+  }
   verifyPalmWalks(stops);
   console.log('Verified original dorm and B1 trunks, four forecourt tree bases and the central stairway.');
   verifyLaunchWalk(stops);
@@ -519,6 +530,7 @@ const out={};for(const r of regions){
   out[r.name].push(...bridgeEntries.filter(v=>v.region===r.name).map(interiorStop));
   if(r.name==='总裁室'){
     out[r.name].push(...suiteViews.map(interiorStop),
+      {...interiorStop({label:'南窗看发射塔',x:5.7,z:17.6,probeY:-7.1,yaw:2.75,pitch:.095,detail:'隔着南窗向海上望，带横臂的是发射区主塔，右后方还有三座海上塔。面向主塔时，南侧山岛在左手边。'}),outlook:true},
       interiorStop({label:'沙发间木道',x:1.13,z:13.2,probeY:-6.85,yaw:0,pitch:.09,panorama:'d9886183b0ca44d4af9a591605a39fd5',detail:'穿过两排沙发之间的木地板向前，走上矮台阶可以抵达金属雕塑。'}),
       {...viewStop({label:'2024 · 全息地球仪',x:3.65,z:4.0,probeY:-6.65,yaw:2.31,pitch:.14}),officeYear:2024,detail:'按照 2024 年官方画面摆放全息地球仪。重新选择沙发间木道可回到开放的中央过道。'});
   }

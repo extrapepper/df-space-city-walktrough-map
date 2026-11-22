@@ -141,6 +141,42 @@ assert(Math.abs(offsets[recovery.referenceFrame])<.001&&Math.abs(offsets.at(-1)+
 assert(profile.every(([y,r],i)=>Number.isFinite(y)&&r>0&&r<4.2&&(!i||y>profile[i-1][0])));
 assert.equal(pose.width,720);assert.equal(pose.height,405);assert(pose.eye.length===3&&pose.focal>0);
 for(const file of ['launch-ring.webp','launch-deck.webp','launch-arm.webp','launch-vehicle.webp','launch-return.webp'])assert.equal(read('data/'+file).subarray(8,12).toString(),'WEBP');
+const horizon=json('horizon.json'),island=horizon.island;
+for(const row of [horizon.inner,horizon.lower,horizon.crest]){
+  assert.equal(row.length,horizon.angles);assert(row.every(Number.isFinite));
+}
+assert(island.start<island.end&&island.crest.length===island.crestRadii.length);
+assert(island.crest.every(Number.isFinite)&&island.crestRadii.every(r=>r>island.footRadius&&r<horizon.radius));
+for(const name of ['horizon-range','horizon-island','horizon-sky','horizon-ground','office-outlook']){
+  assert.equal(read('data/'+name+'.webp').subarray(8,12).toString(),'WEBP');
+}
+const offshore=gunzipSync(read('data/offshore.gz'));
+assert.equal(meshEnd(offshore,0),offshore.length);
+assert.equal(offshore.readUInt32LE(4),3*(1334+2856));
+// Compare the mast tips and island skyline to their traced image coordinates.
+function projectToPhoto(camera,point){
+  const delta=point.map((v,i)=>v-camera.eye[i]);
+  const [x,y,z]=camera.rotation.map(row=>row.reduce((sum,v,i)=>sum+v*delta[i],0));
+  if(z<=0)return null;
+  return [camera.width/2+camera.focal*x/z,camera.height/2+camera.focal*y/z];
+}
+for(const [i,[u,v]] of [[357.5,110],[378.5,126.4],[390.2,135.5]].entries()){
+  const tip=[-135,103.1,368].map((n,j)=>n+(i+1)*horizon.mastSpacing[j]);
+  const [x,y]=projectToPhoto(horizon.guideCamera,tip);
+  assert(Math.hypot(x-u,y-v)<4,'Offshore tower misses exterior photo');
+}
+const islandRidge=island.crest.map((y,i)=>{
+  const angle=(island.start+(island.end-island.start)*i/(island.crest.length-1))*Math.PI/180;
+  return [island.crestRadii[i]*Math.sin(angle),y,-island.crestRadii[i]*Math.cos(angle)];
+});
+for(const [camera,marks] of [[horizon.windowCamera,[[288,172],[369,158],[428,190]]],[pose,[[95,245],[134,254]]]]){
+  const line=islandRidge.map(p=>projectToPhoto(camera,p)).filter(Boolean).sort((a,b)=>a[0]-b[0]);
+  for(const [u,v] of marks){
+    const i=line.findIndex(p=>p[0]>=u);assert(i>0,'Island misses photo');
+    const [x0,y0]=line[i-1],[x1,y1]=line[i];
+    assert(Math.abs(y0+(y1-y0)*(u-x0)/(x1-x0)-v)<6,'Island silhouette misses photo');
+  }
+}
 assert.deepEqual(suiteFaces,[3047,4*509+2*383,2*364,2*178,2152+2510]);
 cabinetFaces.forEach((n,i)=>assert.equal(n,227,'Vending machine '+cabinets[i].instance));
 const knownCells = new Set(cells.map(cell => cell.file));

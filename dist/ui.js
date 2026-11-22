@@ -63,6 +63,19 @@ $('reference-photo').onclick=()=>{
     go.onclick=async()=>{await launchLoading;if(!returnStudy){note('回收场景尚未载入');return}$('dialog').close();visitSurvey(returnStudy.pose)};$('dialog-body').append(go);
     return;
   }
+  if(chosen.landings[Number($('landing').value)]?.outlook){
+    setDialog('总裁室南窗 · 游戏画面','<img class="reference" src="data/office-outlook.webp" alt="从办公室南窗看到的山岛与海上发射塔"><p>窗外由左到右能辨认山岛、瞭望塔和发射塔。最远的塔会被窗框或侧面的建筑遮住，沿窗横移可以改变视线。<a href="https://www.taptap.cn/moment/560580545478659238" target="_blank" rel="noreferrer">官方室内镜头</a> · <a href="https://www.taptap.cn/moment/564129131101424794" target="_blank" rel="noreferrer">室外对照画面</a></p>');
+    const go=document.createElement('button');go.className='visit-photo';go.textContent='从画面位置自由飞行';
+    go.onclick=async()=>{
+      go.disabled=true;await horizonLoading;go.disabled=false;
+      if(!go.isConnected||!$('dialog').open)return;
+      const pose=surveyViews.get('office-outlook');
+      if(!pose){note('南窗取景位置尚未载入');return}
+      $('dialog').close();visitSurvey(pose);
+    };
+    $('dialog-body').append(go);
+    return;
+  }
   if(dormRoom){
     setDialog(label+' · 游戏画面','<img class="reference" src="data/dorm-bedroom.webp" alt="窗边床铺和壁柜写字台的官方游戏画面"><p>2024 年官方攻略展示了窗边的床、书桌和壁柜。卧室按模型中的窗帘、窗槛和墙角校准。照片未注明楼栋，三处同型卧室共用按图估算的家具。<a href="https://www.taptap.cn/moment/564129131101424794" target="_blank" rel="noreferrer">官方地图攻略</a></p>');
     const pose=dormViews.get(dormRoom);
