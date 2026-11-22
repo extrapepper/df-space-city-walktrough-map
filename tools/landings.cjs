@@ -457,6 +457,8 @@ if(process.argv.includes('--check-ladders')){
   verifyPalmWalks(stops);
   console.log('Verified original dorm and B1 trunks, four forecourt tree bases and the central stairway.');
   verifyLaunchWalk(stops);
+  require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(path.join(folder,'launch-plan.json'))),
+    require('./launch.cjs').sampleLaunchPlan(tiles,rays,THREE));
   console.log('Verified both launch stair flights, headroom and the marked extraction deck.');
   verifyDorm(stops);
   require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(path.join(folder,'dorm-plan.json'))),require('./dorm-plan.cjs').sampleApartment(tiles,rays,THREE));
@@ -533,4 +535,5 @@ const out={};for(const r of regions){
   for(const site of extraction.filter(site=>site.region===r.name&&site.landing))out[r.name].push(extractionStop(site));
   console.log(r.name,out[r.name].map(l=>l.y));
 }
+fs.writeFileSync(path.join(folder,'launch-plan.json'),JSON.stringify(require('./launch.cjs').sampleLaunchPlan(tiles,rays,THREE)));
 fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));

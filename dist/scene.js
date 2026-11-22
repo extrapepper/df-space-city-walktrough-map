@@ -169,6 +169,7 @@ async function initialize3D(){
   movingDoorRole=architecturalMaterials.indexOf(dormantDoorSource);
   installDorm(dorm,dormCamera);
   launchLoading=installLaunch().catch(error=>console.warn('发射区材质加载失败',error));
+  jsonFile('launch-plan.json').then(setLaunchPlan).catch(error=>console.warn('撤离平台路线图加载失败',error));
   jsonFile('dorm-plan.json').then(setApartmentPlan).catch(error=>console.warn('宿舍楼层图加载失败',error));
   loadBedroomPhoto().catch(error=>console.warn('宿舍卧室贴图加载失败',error));
   installExtraction(...await Promise.all([jsonFile('extraction.json'),jsonFile('switch-housing.json')]));

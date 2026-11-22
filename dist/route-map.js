@@ -4,29 +4,47 @@ const chart=mapCanvas.getContext('2d');
 let routeMapOpen=false, mapScale=1, mapX=0, mapZ=25, mapDrag=null;
 const mapPoint=(x,z)=>[mapField.clientWidth/2+(x-mapX)*mapScale,mapField.clientHeight/2+(z-mapZ)*mapScale];
 let selectedLadder=null,selectedSite=null;
-let activeMapWalk=null,apartmentPlan=null,apartmentLayer=null;
+let activeMapWalk=null,apartmentPlan=null,apartmentLayer=null,launchPlan=null,launchLayer=null;
 function setMapWalk(path){
   activeMapWalk=path;$('map-blue-walk').setAttribute('aria-pressed',String(Boolean(path)));
 }
 function nearbyMapWalk({x,y,z}){
   if(apartmentPlan&&x>=-220&&x<=-201&&z>=-173&&z<=-155&&y>=-28.55&&y<=-24.2)return apartmentPlan.walk;
   if(x>=51&&x<=83&&z>=-74&&z<=-44&&y>=-35&&y<=-13)return blueHallWalk;
+  if(launchPlan&&y>=-25.5&&y<=-13.8){
+    const u=-(x+123+z-355)*Math.SQRT1_2,f=(z-355-x-123)*Math.SQRT1_2;
+    if(u>=-50.2&&u<=-9&&f>=-34&&f<=-4)return launchPlan.walk;
+  }
   return null;
 }
-function setApartmentPlan(plan){
+function makePlanLayer(plan,fill,background){
   const layer=document.createElement('canvas');layer.width=plan.cols;layer.height=plan.rows;
   const ctx=layer.getContext('2d');
-  ctx.fillStyle='#192022';ctx.fillRect(0,0,plan.cols,plan.rows);
+  if(background){ctx.fillStyle=background;ctx.fillRect(0,0,plan.cols,plan.rows)}
   for(const [row,start,length,kind] of plan.bands){
-    ctx.fillStyle=kind===2?'#bec6bb':'#424e4c';ctx.fillRect(start,row,length,1);
+    ctx.fillStyle=fill(kind);ctx.fillRect(start,row,length,1);
   }
-  apartmentPlan=plan;apartmentLayer=layer;
+  return layer;
+}
+function setLaunchPlan(plan){
+  const colors=Array.from({length:89},(_,i)=>{
+    const t=i/88;return 'rgb('+[39+57*t,49+67*t,54+64*t].map(Math.round).join(',')+')';
+  });
+  colors[95]='#435f72';colors[96]='#d1d1bb';
+  launchPlan=plan;launchLayer=makePlanLayer(plan,kind=>colors[kind]);
   if(routeMapOpen)paintRouteMap();
 }
-function drawApartmentPlan(){
-  const {x0,z0,cols,rows,step}=apartmentPlan,[x,y]=mapPoint(x0,z0);
+function setApartmentPlan(plan){
+  apartmentPlan=plan;apartmentLayer=makePlanLayer(plan,kind=>kind===2?'#bec6bb':'#424e4c','#192022');
+  if(routeMapOpen)paintRouteMap();
+}
+function drawFloorPlan(plan,layer){
+  const {x0,z0,cols,rows,step}=plan,[x,y]=mapPoint(x0,z0);
   chart.save();chart.imageSmoothingEnabled=false;
-  chart.drawImage(apartmentLayer,x,y,cols*step*mapScale,rows*step*mapScale);
+  chart.drawImage(layer,x,y,cols*step*mapScale,rows*step*mapScale);chart.restore();
+}
+function drawApartmentPlan(){
+  drawFloorPlan(apartmentPlan,apartmentLayer);chart.save();
   const door=balconyDoors.find(d=>d.id===7110);
   if(door){
     const {min,max}=door.bounds,[u,v]=mapPoint(min.x,(min.z+max.z)/2);
@@ -51,8 +69,9 @@ function drawMapWalk(path){
   }
   chart.strokeStyle='#182321';chart.lineWidth=5.5;chart.stroke();
   chart.strokeStyle='#ffe09a';chart.lineWidth=2.5;chart.stroke();
-  if(path===apartmentPlan?.walk&&mapScale>=8){
-    for(const i of [4,7,8]){
+  const arrows=path===apartmentPlan?.walk?[4,7,8]:path===launchPlan?.walk?[1,3,4,5]:null;
+  if(arrows&&mapScale>=6){
+    for(const i of arrows){
       const [ax,az]=path[i-1],[bx,bz]=path[i],[cx,cy]=mapPoint((ax+bx)/2,(az+bz)/2);
       chart.save();chart.translate(cx,cy);chart.rotate(Math.atan2(bz-az,bx-ax));
       chart.beginPath();chart.moveTo(-4,-4);chart.lineTo(1,0);chart.lineTo(-4,4);chart.stroke();chart.restore();
@@ -160,7 +179,16 @@ function paintRouteMap(){
   chart.stroke();
   if(activeMapWalk){
     if(activeMapWalk===apartmentPlan?.walk)drawApartmentPlan();
+    if(activeMapWalk===launchPlan?.walk)drawFloorPlan(launchPlan,launchLayer);
     drawMapWalk(activeMapWalk);
+  }
+  if(activeMapWalk&&activeMapWalk===launchPlan?.walk&&mapScale>=5){
+    chart.save();chart.font='600 12px "Microsoft YaHei",sans-serif';chart.textAlign='left';chart.lineWidth=3.5;
+    chart.strokeStyle='#253236';chart.fillStyle='#f0ebd9';
+    for(const [i,label,dx,dy] of [[0,'梯脚',9,-8],[2,'中间平台',10,-8],[3,'梯顶',-28,19]]){
+      const [px,py]=mapPoint(...activeMapWalk[i]);chart.strokeText(label,px+dx,py+dy);chart.fillText(label,px+dx,py+dy);
+    }
+    chart.restore();
   }
   placeLadderMarkers(w,h);
   placeExtractionMarkers(w,h);
@@ -186,7 +214,7 @@ function updateMapPosition(){
   const available=activeMapWalk||nearbyMapWalk(camera.position),walkButton=$('map-blue-walk');
   walkButton.hidden=!available;
   if(available){
-    const label=apartmentPlan&&available===apartmentPlan.walk?'宿舍阳台路线':'下沉层路线';
+    const label=available===apartmentPlan?.walk?'宿舍阳台路线':available===launchPlan?.walk?'撤离平台路线':'下沉层路线';
     if(walkButton.textContent!==label)walkButton.textContent=label;
   }
   const marker=$('map-player');
