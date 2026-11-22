@@ -71,7 +71,7 @@ function makeArchitecturalMaterials(base,cabins,cabinets,study){
   rung.uniforms={submerged:labUniforms.submerged,immersionTint:labUniforms.immersionTint,
     immersionLevel:labUniforms.immersionLevel,finishReady:base.uniforms.finishReady,finishColor:base.uniforms.finishColor};
   return [base,glass,collider,steel,...cabins.map(makeCabinMaterial),rung,...cabinets.map(makeVendingMaterial),
-    ...study.surfaces.map((_,i)=>makeTrainingMaterial(i)),makeFreightMaterial(),...makeChamberMaterials(),...makeFoyerMaterials(),...makeCommandMaterials(),makeServerEquipment(),makeLabServerRoom()];
+    ...study.surfaces.map((_,i)=>makeTrainingMaterial(i)),makeFreightMaterial(),...makeChamberMaterials(),...makeFoyerMaterials(),...makeCommandMaterials(),makeServerEquipment(),makeLabServerRoom(),...makeSuiteMaterials()];
 }
 async function registerSteelPhoto(p){
   const photo=await new THREE.TextureLoader().loadAsync('data/sculpture-finish.webp');
@@ -108,6 +108,7 @@ const architecturalSurfaces=`
 uniform sampler2D finishColor;
 uniform sampler2D finishNormal;
 uniform sampler2D seatPhoto;
+uniform float office2024;
 uniform float finishReady;
 // The glass and its duplicate physical barrier occupy four faces between z=19.026 and 19.113.
 // Leave their original geometry available to the collision raycaster.
@@ -152,6 +153,9 @@ vec3 finishedSurface(vec3 base,vec3 n,float exposed,vec3 ortho){
       tile=2.;period=3.6;tint=mix(vec3(.32,.35,.34),vec3(.15,.20,.24),inside);
     }else if(office){
       tile=large?1.:6.;period=large?2.8:1.6;tint=large?vec3(.29,.30,.29):vec3(.39,.28,.17);
+      if(office2024<.5&&abs(world.y+8.025)<.055&&world.z>4.65&&world.z<18.8&&abs(world.x-1.13)<5.95){
+        tile=6.;period=2.75;tint=vec3(.42,.34,.25);
+      }
     }else if(large){
       tile=1.;period=3.9;tint=mix(vec3(.38,.42,.42),vec3(.64,.63,.57),exposed);
       if(lab||northControl)tint=mix(tint,vec3(.26,.35,.42),inside*.65);
@@ -182,7 +186,7 @@ vec3 finishedSurface(vec3 base,vec3 n,float exposed,vec3 ortho){
     vec2 cloth=fract(vec2(world.z*.78,(world.x+world.y)*1.12));
     vec3 fabric=texture2D(seatPhoto,vec2((cloth.x+step(world.x,0.))*.5,cloth.y)).rgb;
     float stitch=joint((world.z-4.89)/1.76,.006);
-    color=fabric*1.26+.027;
+    color=office2024>.5?fabric*1.26+.027:vec3(.14,.16,.15)*(.64+2.25*dot(fabric,vec3(.26,.61,.13)));
     color*=1.-stitch*.32;
     relief=.07;
   }

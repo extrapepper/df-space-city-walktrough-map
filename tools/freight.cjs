@@ -1,7 +1,7 @@
 // The source is Z-up. Store paint coordinates in the viewer's X, up, Z order,
 // before applying the instance transform so even mirrored stacks keep their finish.
 const types=new Map([[9,1],[17,2],[63,3],[98,4],[634,5],[604,10],[962,11],[997,12],[1027,13],[89,14],
-  [1076,24],[1134,25],[1421,27],[1697,27]]);
+  [1076,24],[1134,25],[1421,27],[1697,27],[95,32]]);
 const commandFinishes=require('./command.cjs').finishes;
 const serverFinishes=require('./servers.cjs').finishes;
 const variants=new Map([

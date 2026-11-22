@@ -56,6 +56,7 @@ $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
   const label=chosen.landings[Number($('landing').value)]?.label;
+  if(key==='ceo'&&chosen.landings[Number($('landing').value)]?.panorama){$('show-room-views').click();return}
   const site=extractionSites.find(s=>s.landing?.label===label&&['centrifuge-switch','blue-switch','testbay'].includes(s.id));
   if(site){
     const file=site.panel?site.id:'testbay-exit';
@@ -75,7 +76,7 @@ $('reference-photo').onclick=()=>{
   const pose=surveyViews.get(key);
   const filename=key==='launch'&&pose?'overview-photo':key;
   const credit=['centrifuge','blue-room'].includes(key)?'画面来自《三角洲行动》2024 年发布的<a href="https://www.taptap.cn/moment/564129131101424794" target="_blank" rel="noreferrer">航天基地进阶攻略</a>。':['dock','buoyancy'].includes(key)?'画面来自《三角洲行动》官方蝶变赛季介绍。':'画面来自《三角洲行动》官方航天基地介绍。';
-  setDialog(chosen.name+' · 游戏画面','<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+filename+'.webp"><p>'+credit+'</p>');
+  setDialog(chosen.name+(key==='ceo'?' · 2024 全息地球仪':' · 游戏画面'),'<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+filename+'.webp"><p>'+credit+'</p>');
   if(!pose)return;
   const button=document.createElement('button');
   button.className='visit-photo';button.textContent='从这个视角自由飞行';
@@ -89,7 +90,7 @@ function describeLanding(){
 $('landing').onchange=describeLanding;
 function selectPlace(item) {
   if(!ready)return;
-  cancelArrival();chosen=item;
+  cancelArrival();chosen=item;setOfficeGlobe(false);
   $('show-room-views').hidden=!['离心机室','浮力室','蓝室','黑室','总裁室'].includes(item.name);
   $('reference-photo').hidden=!photos[item.name];
   $('landing').replaceChildren(...item.landings.map((spot,index)=>new Option((spot.label?spot.label+' · ':'高度 ')+spot.y.toFixed(1)+' m',String(index))));

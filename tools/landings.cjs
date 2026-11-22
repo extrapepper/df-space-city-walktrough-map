@@ -137,6 +137,70 @@ const serverViews=[
   {region:'蓝室',label:'二楼机柜区北门',x:47,z:-45.4,probeY:-18.8,yaw:Math.PI,pitch:.015,detail:'穿过北门向左转，沿两列机柜之间的过道往东走。遇到横倒的窄柜，保持移动并按空格起跳。'}
 ];
 function interiorStop(view){return {...viewStop(view),...(view.panorama?{panorama:view.panorama}:{}),...(view.detail?{detail:view.detail}:{})}}
+const suiteViews=[
+  {label:'会客厅台阶',x:1.13,z:-13.71,yaw:Math.PI,pitch:.12,panorama:'0ebda5a2944147c39ba3fc88362ab9f1',detail:'沿两座花池之间的七级台阶上行，穿过 OFFICE 门框就进了办公室。转身可以看见中央的 HAAVK 斜柱。'},
+  {label:'会客厅 H2 走廊口',x:-11.1,z:-16.50,yaw:Math.PI/2,pitch:.04,panorama:'fbe5ce1483be4de5926aee37dcd4db2b',detail:'穿过 H2 门，正前方是浮力室标志，走廊在这里向右转。回到会客厅后，朝两座花池中间走可以进办公室。'},
+  {label:'会客厅 H4 走廊口',x:12.75,z:-16.50,yaw:-Math.PI/2,pitch:.04,panorama:'6d9425144fa14c48969fe0e9c00a457a',detail:'穿过 H4 门，正前方是黑室标志。回到会客厅后，中央斜柱和花池之间的台阶可以帮助辨别方向。'},
+  {label:'会客厅中央斜柱',x:5.00,z:-16.00,yaw:.648,pitch:.21,panorama:'0ebda5a2944147c39ba3fc88362ab9f1'},
+  {label:'会客厅沙发区',x:5.00,z:-23.65,yaw:-.875,pitch:.09,panorama:'ffb46101b5b4448b9c47337644089600',detail:'北墙装着两幅发光的设备图，两侧各有两张长沙发、一张扶手椅和一张圆茶几。沿斜柱侧面走回大厅即可找到办公室台阶。'}
+].map(v=>({...v,probeY:-8.20}));
+const bridgeEntries=[
+  {region:'黑室',label:'四楼总裁连廊入口',x:32.76,z:19.29,probeY:-8.14,yaw:Math.PI/2,pitch:0,detail:'穿过门框后右转向北，沿玻璃连廊绕过货箱。约 36 米后向左转，穿过 H4 门进入会客厅。花池之间的七级台阶通往办公室。'},
+  {region:'浮力室',label:'四楼总裁连廊入口',x:-30.46,z:-52.96,probeY:-8.14,yaw:-Math.PI/2,pitch:0,panorama:'be36e178aacc4e8790d2c829b4fdf395',detail:'穿过门框后右转向南，沿玻璃连廊绕过货箱。约 36 米后向左转，穿过 H2 门进入会客厅。花池之间的七级台阶通往办公室。'}
+];
+const officeWalks=new Map([
+  ['西侧层间梯',[[32.76,8],[32.76,19.29],[27.79,19.29],[27.79,2.2],[26.46,2.2],[26.46,-16.5],[6,-16.5],[6,-13.4],[1.13,-13.4],[1.13,-5.4]]],
+  ['东侧层间梯',[[-30.46,-41.76],[-30.46,-52.96],[-25.98,-52.96],[-25.98,-48.68],[-24.68,-48.68],[-24.68,-16.5],[-3.5,-16.5],[-3.5,-13.4],[1.13,-13.4],[1.13,-5.4]]]
+]);
+function verifySuite(stops){
+  const panoramas=JSON.parse(fs.readFileSync(path.join(folder,'room-views.json')))['总裁室'];
+  for(const v of suiteViews){
+    if(!panoramas.some(p=>p.id===v.panorama))throw Error('Missing lobby panorama '+v.label);
+    require('node:assert/strict').deepEqual(stops['总裁室'].find(s=>s.label===v.label),interiorStop(v));
+  }
+  for(const v of bridgeEntries)require('node:assert/strict').deepEqual(stops[v.region].find(s=>s.label===v.label),interiorStop(v));
+  const corridors=Array.from(officeWalks.values(),p=>p.slice(0,-1));
+  corridors.push([[5,-23.65],[5,-16.5]]);
+  // Each list samples the middle of all seven windows along one bridge.
+  const bridges=[
+    {x:27,glassX:24.655,zs:[-8,-4,0,5,9,16,21]},
+    {x:-25,glassX:-22.391,zs:[-24,-30,-34,-39,-44,-49,-54]}
+  ];
+  for(const {x,glassX,zs} of bridges){
+    const direction=new THREE.Vector3(Math.sign(glassX-x),0,0);
+    for(const z of zs){
+      const pane=rays(tiles,new THREE.Vector3(x,-7.8,z),direction,4)[0];
+      if(!pane||Math.abs(pane.point.x-glassX)>.016)throw Error('Missing executive bridge window at '+x+', '+z);
+    }
+  }
+  for(const path of corridors)for(let i=1;i<path.length;i++){
+    const [ax,az]=path[i-1],[bx,bz]=path[i];
+    const len=Math.hypot(bx-ax,bz-az),direction=new THREE.Vector3((bx-ax)/len,0,(bz-az)/len);
+    for(const side of [-.30,0,.30]){
+      const x=ax+side*direction.z,z=az-side*direction.x;
+      for(const height of [.35,1.64]){
+        const wall=rays(tiles,new THREE.Vector3(x,-9.57+height,z),direction,len)[0];
+        if(wall)throw Error('Obstructed executive corridor at '+wall.point.toArray().join(', '));
+      }
+      for(let k=0;k<=Math.ceil(len/.25);k++){
+        const d=Math.min(k*.25,len),p=new THREE.Vector3(x+d*direction.x,-9.26,z+d*direction.z);
+        const hit=rays(tiles,p,down,.55)[0];
+        if(!hit||Math.abs(hit.point.y+9.57)>.13||rays(tiles,p,up,1.55).length)throw Error('Broken executive lobby floor');
+      }
+    }
+  }
+  for(const x of [.80,1.13,1.46]){
+    let y=-9.574,rises=0;
+    for(let i=0;i<=80;i++){
+      const z=-13.4+i*.10,p=new THREE.Vector3(x,y+.29,z),floor=rays(tiles,p,down,.49)[0];
+      if(!floor||floor.point.y<y-.02||floor.point.y>y+.19)throw Error('Broken office entrance stair');
+      if(floor.point.y>y+.12)rises++;
+      y=floor.point.y;p.y=y+.04;
+      if(rays(tiles,p,up,1.88).length)throw Error('Low office doorway');
+    }
+    if(rises!==7||Math.abs(y+8.398)>.012)throw Error('Office staircase height changed');
+  }
+}
 function verifyChamber(stops){
   const panoramas=JSON.parse(fs.readFileSync(path.join(folder,'room-views.json')))['黑室'];
   for(const v of chamberViews){
@@ -215,6 +279,12 @@ function verifyServerRooms(stops){
   }
 }
 const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
+for(const r of ladders){
+  const path=officeWalks.get(r.name);
+  if(!path)continue;
+  if(Math.hypot(path[0][0]-(r.x-.77*r.nx),path[0][1]-(r.z-.77*r.nz))>.03)throw Error('Office path misses ladder landing');
+  r.officePath=path;
+}
 const ladderFile=path.join(folder,'ladders.json');
 const extraction=JSON.parse(fs.readFileSync(path.join(folder,'extraction.json'),'utf8'));
 function extractionStop(site){
@@ -249,6 +319,8 @@ if(process.argv.includes('--check-ladders')){
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
   verifyChamber(stops);
   verifyServerRooms(stops);
+  verifySuite(stops);
+  console.log('Verified the H2 and H4 ladder-to-office walks, seven entrance steps and the seating aisle.');
   console.log('Verified the H4 server aisle loop and access through the H1 west, H1 south and H3 north doors.');
   console.log('Verified H4 entrance, both stair flights, command room, hatch sightline and test-bay sill.');
   for(const view of propViews)require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),propStop(view));
@@ -279,11 +351,19 @@ const out={};for(const r of regions){
         y:route.bottom,yaw,pitch:.28,...(route.water?{water:true}:{})});
     }
     out[r.name].push({label:name+' · 上口',x:x-nx*.77,z:z-nz*.77,y:route.top,
-      yaw:yaw+Math.PI,pitch:-.48,...(route.headroom?{crouch:true}:{})});
+      yaw:yaw+Math.PI,pitch:-.48,...(route.headroom?{crouch:true}:{}),
+      ...(name==='西侧层间梯'?{detail:'从梯口向南约 11 米，右边的门通往四楼连廊。进门后右转向北，沿玻璃窗走到尽头，再左转进入总裁室会客厅。'}:{}),
+      ...(name==='东侧层间梯'?{detail:'从梯口向北约 11 米，右边的门通往四楼连廊。进门后右转向南，沿玻璃窗走到尽头，再左转进入总裁室会客厅。'}:{})});
   }
   if(r.name==='码头区')out[r.name].push(viewStop({label:'南侧平台售货机',x:-48.655,z:140.532,probeY:-31.86,yaw:-.6285,pitch:-.1151}));
   if(r.name==='黑室')out[r.name].push(viewStop({label:'器材架旁售货机',x:54.770,z:22.709,probeY:-27.65,yaw:1.986,pitch:-.12}));
   out[r.name].push(...serverViews.filter(v=>v.region===r.name).map(interiorStop));
+  out[r.name].push(...bridgeEntries.filter(v=>v.region===r.name).map(interiorStop));
+  if(r.name==='总裁室'){
+    out[r.name].push(...suiteViews.map(interiorStop),
+      interiorStop({label:'沙发间木道',x:1.13,z:13.2,probeY:-6.85,yaw:0,pitch:.09,panorama:'d9886183b0ca44d4af9a591605a39fd5',detail:'穿过两排沙发之间的木地板向前，走上矮台阶可以抵达金属雕塑。'}),
+      {...viewStop({label:'2024 · 全息地球仪',x:3.65,z:4.0,probeY:-6.65,yaw:2.31,pitch:.14}),officeYear:2024,detail:'按照 2024 年官方画面摆放全息地球仪。重新选择沙发间木道可回到开放的中央过道。'});
+  }
   if(r.name==='黑室')out[r.name].unshift(...chamberViews.map(interiorStop));
   if(r.name==='离心机室'){
     out[r.name].push(viewStop({label:'A 门入口',x:-45.75,z:19.65,probeY:-28.95,yaw:Math.PI/2,pitch:0}));

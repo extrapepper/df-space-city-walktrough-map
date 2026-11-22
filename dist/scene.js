@@ -155,7 +155,7 @@ async function initialize3D(){
   material.defines={SURVEY_COUNT:1};
   Object.assign(material.uniforms,labUniforms);
   Object.assign(material.uniforms,{
-    surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},
+    surveyPhotos:{value:null},surveyDepth:{value:null},finishColor:{value:null},finishNormal:{value:null},seatPhoto:{value:null},finishReady:{value:0},office2024,
     surveyEye:{value:[new THREE.Vector3()]},surveyAxes:{value:[new THREE.Matrix3()]},
     surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
     surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
@@ -184,6 +184,7 @@ async function initialize3D(){
   installHarbor(water);
   installPool(JSON.parse(new TextDecoder().decode(basin)));
   installOffice().catch(error=>console.warn('总裁室陈设加载失败',error));
+  installSuite().catch(error=>console.warn('总裁室会客厅加载失败',error));
   grid=new THREE.GridHelper(3200,128,0x48584c,0x374238);grid.position.y=-95;scene.add(grid);
   glReady=hasGL=true;resize3D();home3D();orbitCamera();
 }
@@ -212,6 +213,7 @@ async function loadSurveyTextures(){
 }
 function visitSurvey(pose){
   changeView('fly');
+  setOfficeGlobe(pose===surveyViews.get('ceo'));
   camera.position.fromArray(pose.eye);
   const [right,downward,forward]=pose.rotation;
   const orientation=new THREE.Matrix4().makeBasis(
@@ -297,7 +299,7 @@ function hit(origin,direction,length){
     rays.length=0;tray.mesh.raycast(cast,rays);
     for(const h of rays)if(!best||h.distance<best.distance)best=h;
   }
-  if(officeBounds&&cast.ray.intersectsBox(officeBounds)&&officeBounds.distanceToPoint(origin)<=length){
+  if(office2024.value&&officeBounds&&cast.ray.intersectsBox(officeBounds)&&officeBounds.distanceToPoint(origin)<=length){
     rays.length=0;cast.intersectObjects(officeSolids,false,rays);
     if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
   }
@@ -343,6 +345,7 @@ async function changeView(mode,arrival=false){
         // Use a nearby outdoor approach instead of dropping onto a landmark roof.
         const place=chosen||points.find(p=>p.name==='中控桥');
         const stop=place?.landings[chosen?Number($('landing').value)||0:place.landings.length-1]||approach(pt);
+        setOfficeGlobe(stop.officeYear===2024);
         selectPracticeForLanding(stop.label);
         awaitingLanding=true;
         const needed=tiles.filter(c=>distanceXZ(c.bbox,stop)<3);

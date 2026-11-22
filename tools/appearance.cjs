@@ -39,6 +39,8 @@ function identifySurfaces(parts) {
   const command=require('./command.cjs'),firstCommand=firstFoyer+foyer.groups.length;
   command.prepareCommandRoom(records,firstCommand);
   require('./servers.cjs').prepareServers(records,firstCommand+command.groups.length+2);
+  const suite=require('./suite.cjs'),firstSuite=firstCommand+command.groups.length+3;
+  suite.prepareSuite(records,firstSuite);
   rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);
@@ -49,7 +51,7 @@ function identifySurfaces(parts) {
   for (const part of parts) {
     if(part.freight){
       const style=part.freight.style,officeRole=firstCommand+command.groups.length;
-      part.finish=style>=24?officeRole+1:style>10?officeRole:firstRoom+rooms.length;
+      part.finish=style===32?firstSuite+suite.groups.length:style>=24?officeRole+1:style>10?officeRole:firstRoom+rooms.length;
     }
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;

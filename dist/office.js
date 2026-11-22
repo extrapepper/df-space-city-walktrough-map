@@ -1,6 +1,12 @@
 'use strict';
-let officeBounds;
+let officeBounds,historicalGlobe;
+const office2024={value:0};
 const officeSolids=[];
+function setOfficeGlobe(show){
+  office2024.value=show?1:0;
+  if(historicalGlobe)historicalGlobe.visible=show;
+  dirty=true;
+}
 async function installOffice(){
   const [study,land]=await Promise.all([jsonFile('office-study.json'),new THREE.TextureLoader().loadAsync('data/office-globe.webp')]);
   land.colorSpace=THREE.SRGBColorSpace;
@@ -43,7 +49,8 @@ async function installOffice(){
   const hemi=new THREE.HemisphereLight(0xe7f7ff,0x796349,1.65);
   const sun=new THREE.DirectionalLight(0xffe4b8,2.25);sun.position.set(8,14,11);
   hemi.layers.enable(poolReflectionLayer);sun.layers.enable(poolReflectionLayer);
-  scene.add(hemi,sun,group);group.updateMatrixWorld(true);
+  scene.add(hemi,sun,glass,group);group.updateMatrixWorld(true);
+  historicalGlobe=group;historicalGlobe.visible=!!office2024.value;
   officeBounds=new THREE.Box3().setFromObject(group);
   surveyViews.set('ceo',study.views[0]);dirty=true;
   await registerSteelPhoto(study.sculpture);

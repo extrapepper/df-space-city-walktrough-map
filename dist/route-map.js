@@ -43,7 +43,7 @@ function placeLadderMarkers(w,h){
   for(const [i,route] of ladders.entries()){
     const [x,y]=mapPoint(route.x,route.z),button=layer.children[i];
     button.hidden=x<0||y<0||x>w||y>h;
-    if(button.hidden&&selectedLadder===route)selectedLadder=null;
+    if(button.hidden&&selectedLadder===route&&!route.officePath)selectedLadder=null;
     button.style.left=x+'px';button.style.top=y+'px';
     button.setAttribute('aria-pressed',String(selectedLadder===route));
   }
@@ -51,6 +51,21 @@ function placeLadderMarkers(w,h){
   if(selectedLadder){
     const r=selectedLadder;
     info.textContent=r.name+'　'+(r.water?'水面 ':'梯脚 ')+r.bottom.toFixed(1)+' → 上口 '+r.top.toFixed(1)+' m'+(r.headroom?'　蹲姿通行':'');
+    if(r.officePath){
+      const path=r.officePath;
+      chart.save();chart.beginPath();chart.lineJoin='round';chart.lineCap='round';
+      let metres=0;
+      for(const [i,[x,z]] of path.entries()){
+        const [u,v]=mapPoint(x,z);
+        if(!i){chart.moveTo(u,v);continue}
+        chart.lineTo(u,v);metres+=Math.hypot(x-path[i-1][0],z-path[i-1][1]);
+      }
+      chart.strokeStyle='#182321';chart.lineWidth=5.5;chart.stroke();
+      chart.strokeStyle='#ffe09a';chart.lineWidth=2.5;chart.stroke();
+      const [u,v]=mapPoint(...path[path.length-1]);
+      chart.beginPath();chart.arc(u,v,4,0,Math.PI*2);chart.fillStyle='#ffe09a';chart.fill();chart.restore();
+      info.textContent+='　沿黄线步行约 '+Math.round(metres)+' m 到总裁办公室';
+    }
   }
 }
 function fitRouteMap(){
