@@ -424,6 +424,32 @@ function verifyLaunchWalk(stops){
   assert(Math.abs(heights[3]+17.002)<.02&&Math.abs(previous-deck.y)<.01);
   const end=world(...walk.at(-1));assert(Math.hypot(end.x-deck.x,end.z-deck.z)<.12);
 }
+function verifyMastSupports(stops){
+  const assert=require('node:assert/strict'),study=JSON.parse(fs.readFileSync(path.join(folder,'launch-mast.json')));
+  for(const name of ['launch','mast'])vm.runInContext(fs.readFileSync(path.join(folder,'../'+name+'.js'),'utf8'),scope);
+  const geometry=scope.mastSupportGeometry(study);geometry.boundsTree=new lib.MeshBVH(geometry);
+  const frame=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));
+  const lerp=THREE.MathUtils.lerp;
+  for(const side of [-1,1]){
+    const point=(t,f)=>scope.launchPoint(side*lerp(...study.mountU,t),lerp(...study.height,t),lerp(...study.front,t)+f*lerp(...study.width,t));
+    const normal=new THREE.Plane().setFromCoplanarPoints(point(0,0),point(1,0),point(0,1)).normal;
+    for(const [t,f,solid] of [[.36,0,true],[.36,.964,true],[.545,.25,true],[.47,.24,true],[.47,.50,false],[.64,.5,false],[.89,.48,false]]){
+      const probe=new THREE.Raycaster(point(t,f).addScaledVector(normal,1.25),normal.clone().negate(),0,2.5);
+      assert.equal(!!probe.intersectObject(frame).length,solid,'Mast lattice opening or member changed');
+    }
+    for(const f of [0,1]){
+      const toe=point(1,f),deck=rays(tiles,toe.clone().addScaledVector(up,.38),down,.60)[0];
+      assert(deck&&Math.abs(deck.point.y-toe.y)<.025,'Missing native deck below a mast foot');
+    }
+  }
+  const stop=stops['发射区'].find(s=>s.mastFoot);
+  for(const offset of [-1,0,1]){
+    const foot=new THREE.Vector3(stop.x+offset*Math.SQRT1_2,stop.y+.05,stop.z-offset*Math.SQRT1_2);
+    const slab=rays(tiles,foot,down,.3)[0];
+    assert(slab&&Math.abs(slab.point.y-stop.y)<.015&&!rays(tiles,foot,up,1.85).length);
+    assert.equal(new THREE.Raycaster(foot,up,0,1.85).intersectObject(frame).length,0);
+  }
+}
 function extractionStop(site){
   const {label,probeY}=site.landing;
   if(!site.panel)return viewStop({...site.landing,x:(site.mapX-668650)/100,z:(site.mapY+452830)/100});
@@ -468,9 +494,10 @@ if(process.argv.includes('--check-ladders')){
   verifyPalmWalks(stops);
   console.log('Verified original dorm and B1 trunks, four forecourt tree bases and the central stairway.');
   verifyLaunchWalk(stops);
+  verifyMastSupports(stops);
   require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(path.join(folder,'launch-plan.json'))),
     require('./launch.cjs').sampleLaunchPlan(tiles,rays,THREE));
-  console.log('Verified both launch stair flights, headroom and the marked extraction deck.');
+  console.log('Verified the launch stairs, extraction deck, mast feet, lattice openings and service platform.');
   verifyDorm(stops);
   require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(path.join(folder,'dorm-plan.json'))),require('./dorm-plan.cjs').sampleApartment(tiles,rays,THREE));
   console.log('Verified three apartment balconies, their native handrails, sliding doors and five walking starts.');
@@ -522,7 +549,8 @@ const out={};for(const r of regions){
     out[r.name].unshift(
       interiorStop({label:'撤离平台双段梯 · 梯脚',...world(...walk[0]),probeY:-24.5,yaw:3*Math.PI/4,pitch:.09,detail:'沿正前方上第一段楼梯，到中间平台向左横移，再沿同一方向上第二段。到顶左转进入蓝白色的撤离平台。'}),
       interiorStop({label:'撤离平台双段梯 · 中间平台',...world(...walk[2]),probeY:-20.65,yaw:3*Math.PI/4,pitch:.12,detail:'面前是第二段楼梯。走到上层后左转，进入方形平台。'}),
-      {...interiorStop({label:'2024 · 火箭回收',...world(-33.34,-18.98),probeY:-17.1,yaw:1.30,pitch:.74,detail:'从方形撤离平台看向圆形承座。火箭沿塔身下降，选择这个起点可重新观看。回收末段被烟尘遮挡，停靠高度按承座口估算。'}),launchReturn:true});
+      {...interiorStop({label:'2024 · 火箭回收',...world(-33.34,-18.98),probeY:-17.1,yaw:1.30,pitch:.74,detail:'从方形撤离平台看向圆形承座。火箭沿塔身下降，选择这个起点可重新观看。回收末段被烟尘遮挡，停靠高度按承座口估算。'}),launchReturn:true},
+      {...interiorStop({label:'主塔斜撑 · 底座检修台',...world(-17.7,19.5),probeY:-3.75,yaw:Math.PI/4,pitch:.80,detail:'站在主塔底座，抬头能看到两条斜梁之间的人字撑。降低视角可以沿检修台查看两端的支脚。'}),mastFoot:true});
   }
   if(r.name==='码头区')out[r.name].push(viewStop({label:'南侧平台售货机',x:-48.655,z:140.532,probeY:-31.86,yaw:-.6285,pitch:-.1151}));
   if(r.name==='黑室')out[r.name].push(viewStop({label:'器材架旁售货机',x:54.770,z:22.709,probeY:-27.65,yaw:1.986,pitch:-.12}));

@@ -1,8 +1,8 @@
 'use strict';
-const launchArt={deck:{value:null},ring:{value:null},arm:{value:null},vehicle:{value:null}};
+const launchArt={deck:{value:null},ring:{value:null},arm:{value:null},vehicle:{value:null},mast:{value:null}};
 const launchSurvey={eye:{value:new THREE.Vector3()},axes:{value:new THREE.Matrix3()},focal:{value:new THREE.Vector2()},rect:{value:new THREE.Vector4()},ready:{value:0}};
 const launchSolids=[];
-let launchLoading,returnStudy,returnVehicle,returnPlume,returnTime=0,returnPlaying=false;
+let launchLoading,returnStudy,mastStudy,returnVehicle,returnPlume,returnTime=0,returnPlaying=false;
 function setLaunchSurvey(pose){
   launchSurvey.eye.value.fromArray(pose.eye);launchSurvey.axes.value.set(...pose.rotation.flat());
   launchSurvey.focal.value.set(pose.focal/pose.width,pose.focal/pose.height);
@@ -11,7 +11,7 @@ function setLaunchSurvey(pose){
 function makeLaunchMaterials(base){
   const u=base.uniforms;
   return Array.from({length:6},(_,kind)=>dormShader(`
-    uniform sampler2D deck,ring,finish,relief,photo,depth;uniform vec3 eye;uniform mat3 axes;
+    uniform sampler2D deck,ring,mast,finish,relief,photo,depth;uniform vec3 eye;uniform mat3 axes;
     uniform vec4 rect;uniform vec2 focal;uniform float scanned,ready,painted;
     float joint(float x,float width){
       float e=abs(fract(x+.5)-.5),aa=max(.001,fwidth(x));
@@ -60,8 +60,17 @@ function makeLaunchMaterials(base){
       }else if(${kind}==1&&abs(n.y)>.25&&q.y> -8.1){
         c=mix(c,texture2D(ring,(q.xz+9.)/18.).rgb,painted);
       }else if(${kind}==2){
-        c=mix(vec3(.36,.337,.304),vec3(.48,.46,.414),abs(localN.z))*(.93+.15*grain);
-        c*=1.-.28*joint((q.y+5.)/4.18,.012);
+        bool casing=q.z>=14.77&&abs(q.x)<3.2&&q.z<28.55;
+        c=mix(vec3(.18,.185,.18),vec3(.32,.318,.30),abs(localN.y))*(.88+.35*grain);
+        if(casing){
+          float shoulder=mix(23.20,23.73,smoothstep(24.92,26.04,q.y))-.0549*max(0.,q.y-26.04);
+          float aft=28.29-.0549*max(0.,q.y-.1);
+          float s=q.z<shoulder?.65*(q.z-14.79)/(shoulder-14.79):.65+.35*(q.z-shoulder)/(aft-shoulder);
+          vec2 panel=clamp(vec2(s,(103.4-q.y)/113.4),.001,.999);
+          c=mix(c,texture2D(mast,panel).rgb*(.95+.13*grain),painted);
+        }else if(abs(q.x)>3.18||q.z>27.5){
+          c=vec3(.43,.424,.40)*wear;
+        }
       }else if(${kind}==3||${kind}==4){
         c*=vec3(.84,.85,.87)*(1.-.23*joint(uv.y/3.9,.012));
       }else if(${kind}==5){
@@ -85,20 +94,20 @@ function makeLaunchMaterials(base){
         }
       }
       gl_FragColor=vec4(c,1.);
-    }`,{...launchSurvey,deck:launchArt.deck,ring:launchArt.ring,finish:u.finishColor,relief:u.finishNormal,scanned:u.finishReady,
+    }`,{...launchSurvey,deck:launchArt.deck,ring:launchArt.ring,mast:launchArt.mast,finish:u.finishColor,relief:u.finishNormal,scanned:u.finishReady,
       photo:u.surveyPhotos,depth:u.surveyDepth,painted:launchPainted}));
 }
 const launchPainted={value:0};
 function launchPoint(u,y,f){
   return new THREE.Vector3(-123-(u+f)*Math.SQRT1_2,y,355+(f-u)*Math.SQRT1_2);
 }
-function armGeometry(){
+function armGeometry({plate,housing}){
   const points=[],colors=[],uvs=[],indices=[];
   function quad(a,b,c,d,color,paint=false){
     const start=points.length/3;
     for(const v of [a,b,c,d])points.push(...launchPoint(...v).toArray());
     for(let i=0;i<4;i++)colors.push(...color);
-    uvs.push(...(paint?[0,0,1,0,1,1,0,1]:[-1,0,-1,0,-1,0,-1,0]));
+    uvs.push(...(Array.isArray(paint)?paint:paint?[0,0,1,0,1,.5,0,.5]:[-1,0,-1,0,-1,0,-1,0]));
     indices.push(start,start+1,start+2,start,start+2,start+3);
   }
   function strut(a,b,w,depth,color){
@@ -108,7 +117,44 @@ function armGeometry(){
     corners.forEach((v,i)=>{const j=(i+1)%4;quad(v,corners[j],far[j],far[i],color)});
   }
   const buff=[.59,.555,.496],dark=[.28,.273,.247],steel=[.48,.456,.417];
-  for(const [root,tip,tipY,front] of [[-2.05,-26.7,40.8,10.9],[2.05,22.2,41.35,12.3]]){
+  // The photographed arm has a short flat heel and tapers both in depth and height.
+  const [heel,tip,tipBase,corner,heelBase]=plate;
+  const mixPoint=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+  const split=(corner[0]-heelBase[0])/(tipBase[0]-heelBase[0]);
+  const upper=t=>mixPoint(heel,tip,t);
+  const lower=t=>t<split?mixPoint(heelBase,corner,t/split):mixPoint(corner,tipBase,(t-split)/(1-split));
+  const front=(p,t)=>[p[0],p[1],p[2]-(2.3*(1-t)+.55*t)];
+  for(const [a,b] of [[0,split],[split,1]]){
+    quad(upper(a),upper(b),lower(b),lower(a),buff,[a,0,b,0,b,.5,a,.5]);
+    for(const edge of [upper,lower]){
+      const s=edge(a),e=edge(b);
+      quad(s,e,front(e,b),front(s,a),edge===upper?buff:dark);
+      strut(front(s,a),front(e,b),.42,.34,steel);
+    }
+  }
+  for(let i=0;i<7;i++){
+    const a=i/7,b=(i+1)/7;
+    strut(front((i%2?upper:lower)(a),a),front((i%2?lower:upper)(b),b),.29,.31,steel);
+  }
+  quad(tip,front(tip,1),front(tipBase,1),tipBase,dark);
+  const inside=housing.map(([x,y,z])=>[x,y,z-2.0]);
+  quad(...housing,steel,[0,.505,1,.505,1,1,0,1]);quad(...inside,dark);
+  housing.forEach((v,i)=>{const j=(i+1)%4;quad(v,housing[j],inside[j],inside[i],steel)});
+  for(const h of [35.1,40.7]){
+    strut([-.9,h,14.6],[-10.,h,12.2],.76,2.54,dark);
+  }
+  const pivot=(x,z,lo,hi,r,color)=>{
+    const edge=(j,y)=>[x+r*Math.cos(j*Math.PI/8),y,z+r*Math.sin(j*Math.PI/8)];
+    for(let i=0;i<16;i++){
+      quad(edge(i,lo),edge(i+1,lo),edge(i+1,hi),edge(i,hi),color);
+    }
+    for(const y of [lo,hi])for(let j=1;j<15;j+=2)quad(edge(0,y),edge(j,y),edge(j+1,y),edge(j+2,y),color);
+  };
+  pivot(-9.1,13.35,35.18,35.74,.83,dark);
+  pivot(-9.1,13.35,35.74,40.42,.62,buff);
+  pivot(-9.1,13.35,40.42,40.95,.83,dark);
+  {
+    const root=2.05,tip=22.2,tipY=41.35,front=12.3;
     const rear=front+2.65;
     const top=t=>39.75+t*(tipY-39.75),bottom=t=>32.7+t*(tipY-1.9-32.7);
     const corner=(t,h,f)=>[root+(tip-root)*t,h(t),f];
@@ -163,6 +209,9 @@ function launchMesh(g,skin,isArm){
     vec3 paint=tex.x<-.5?tint:texture2D(skin,tex).rgb;
     float shade=${isArm?'.80+.20*abs(dot(n,normalize(vec3(-.34,.86,.38))))':'1.'};
     gl_FragColor=vec4(paint*shade,1.);}`});
+  return registerLaunchSolid(g,m);
+}
+function registerLaunchSolid(g,m){
   g.computeBoundingBox();g.boundsTree=new MeshBVHLib.MeshBVH(g,{maxLeafTris:12});
   const mesh=new THREE.Mesh(g,m);scene.add(mesh);
   const solid={mesh,bounds:g.boundingBox.clone()};launchSolids.push(solid);return solid;
@@ -199,10 +248,12 @@ function makeReturnPlume(){
 async function installLaunch(){
   const loader=new THREE.TextureLoader();
   const texture=async file=>{const t=await loader.loadAsync('data/launch-'+file+'.webp');t.flipY=false;t.anisotropy=Math.min(8,gl.capabilities.getMaxAnisotropy());t.needsUpdate=true;return t};
-  const [study,deck,ring,arm,vehicle]=await Promise.all([jsonFile('launch-return.json'),...['deck','ring','arm','vehicle'].map(texture)]);
+  const [study,structure,deck,ring,arm,vehicle,mast,zinc,lattice]=await Promise.all([
+    jsonFile('launch-return.json'),jsonFile('launch-mast.json'),...['deck','ring','arm','vehicle','mast','zinc','lattice'].map(texture)]);
   launchArt.deck.value=deck;launchArt.ring.value=ring;launchPainted.value=1;
-  launchArt.arm.value=arm;launchArt.vehicle.value=vehicle;returnStudy=study;
-  launchMesh(armGeometry(),launchArt.arm,true);
+  launchArt.arm.value=arm;launchArt.vehicle.value=vehicle;launchArt.mast.value=mast;returnStudy=study;mastStudy=structure;
+  zinc.wrapT=THREE.RepeatWrapping;zinc.needsUpdate=true;buildMastSupports(structure,zinc,lattice);
+  launchMesh(armGeometry(structure),launchArt.arm,true);
   returnVehicle=launchMesh(vehicleGeometry(study.profile),launchArt.vehicle,false);returnVehicle.mesh.visible=false;
   returnPlume=makeReturnPlume();
   dirty=true;

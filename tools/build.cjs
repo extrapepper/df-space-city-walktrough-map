@@ -140,7 +140,7 @@ assert.equal(offsets.length,61);assert(offsets.every((v,i)=>Number.isFinite(v)&&
 assert(Math.abs(offsets[recovery.referenceFrame])<.001&&Math.abs(offsets.at(-1)+profile[0][0]+6.48)<.02);
 assert(profile.every(([y,r],i)=>Number.isFinite(y)&&r>0&&r<4.2&&(!i||y>profile[i-1][0])));
 assert.equal(pose.width,720);assert.equal(pose.height,405);assert(pose.eye.length===3&&pose.focal>0);
-for(const file of ['launch-ring.webp','launch-deck.webp','launch-arm.webp','launch-vehicle.webp','launch-return.webp'])assert.equal(read('data/'+file).subarray(8,12).toString(),'WEBP');
+for(const kind of ['ring','deck','arm','vehicle','return','mast','zinc','lattice'])assert.equal(read('data/launch-'+kind+'.webp').subarray(8,12).toString(),'WEBP');
 const horizon=json('horizon.json'),island=horizon.island;
 for(const row of [horizon.inner,horizon.lower,horizon.crest]){
   assert.equal(row.length,horizon.angles);assert(row.every(Number.isFinite));
@@ -159,6 +159,24 @@ function projectToPhoto(camera,point){
   const [x,y,z]=camera.rotation.map(row=>row.reduce((sum,v,i)=>sum+v*delta[i],0));
   if(z<=0)return null;
   return [camera.width/2+camera.focal*x/z,camera.height/2+camera.focal*y/z];
+}
+const tower=json('launch-mast.json'),launchWorld=require('./launch.cjs').world;
+function checkTowerPhoto(camera,[u,h,f],pixel,tolerance){
+  const {x,z}=launchWorld(u,f),actual=projectToPhoto(camera,[x,h,z]);
+  assert(actual&&Math.hypot(actual[0]-pixel[0],actual[1]-pixel[1])<tolerance,'Mast misses filmed position '+pixel);
+}
+for(const [i,pixel] of [[290.5,65.2],[444.4,39.5],[443,67.8],[322,134.5],[295,137.2]].entries()){
+  checkTowerPhoto(tower.camera,tower.plate[i],pixel,.1);
+}
+for(const [i,pixel] of [[249,59],[273,68],[276,146],[257,149]].entries())checkTowerPhoto(tower.camera,tower.housing[i],pixel,.1);
+for(const [side,camera,pixels,limit] of [
+  [-1,tower.camera,[[249.5,350],[169.5,371],[365.5,568.5]],2],
+  [1,pose,[[345.5,237.7],[350.4,241.2],[383.3,289]],4]
+]){
+  for(const [i,[level,edge]] of [[0,0],[0,1],[1,0]].entries()){
+    const anchor=[side*tower.mountU[level],tower.height[level],tower.front[level]+edge*tower.width[level]];
+    checkTowerPhoto(camera,anchor,pixels[i],limit);
+  }
 }
 for(const [i,[u,v]] of [[357.5,110],[378.5,126.4],[390.2,135.5]].entries()){
   const tip=[-135,103.1,368].map((n,j)=>n+(i+1)*horizon.mastSpacing[j]);

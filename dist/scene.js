@@ -230,6 +230,7 @@ async function loadSurveyTextures(){
   u.enableSurvey.value=1;material.needsUpdate=true;dirty=true;
 }
 function visitSurvey(pose){
+  if(mastStudy&&pose===surveyViews.get('launch'))pose=mastStudy.camera;
   changeView('fly');
   setOfficeGlobe(pose===surveyViews.get('ceo')||pose===surveyViews.get('office-outlook'));
   setLaunchReturn(pose===returnStudy?.pose?'photo':false);
@@ -381,7 +382,7 @@ async function changeView(mode,arrival=false){
         const needed=tiles.filter(c=>distanceXZ(c.bbox,stop)<3);
         $('ready').textContent='载入漫游起点';
         const loaded=await Promise.all(needed.map(fetchCell));
-        if(stop.launchReturn)await launchLoading;
+        if(stop.launchReturn||stop.mastFoot)await launchLoading;
         if(order!==arrivalSerial)return;
         awaitingLanding=false;$('ready').textContent='场景就绪';
         if(loaded.some(v=>!v)){note('起点模型尚未载入，请重试');return}
@@ -409,6 +410,7 @@ async function changeView(mode,arrival=false){
     camera.rotation.order='YXZ';camera.rotation.set(flyPitch,flyYaw,0);
   }
   view=mode;camera.fov=mode==='orbit'?39:67;camera.updateProjectionMatrix();
+  updateImmersion();
   if(mode!=='orbit')$('selection').hidden=true;
   syncMode();dirty=true;detailClock=0;
 }
