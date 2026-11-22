@@ -124,7 +124,9 @@ const chamberViews=[
   {label:'正门玻璃入口',x:73.46,z:48.3,probeY:-29.3,yaw:0,pitch:.06,panorama:'c5864a8a9e814e15b7f3c4ed33d5bd90',detail:'从两扇玻璃门之间进大厅。左边是宇航服，右边是发动机。顺着左墙上的 STAIRS 标记可以找到楼梯间。'},
   {label:'门厅宇航服展台',x:69.35,z:37.0,probeY:-29.3,yaw:1.78,pitch:.11,panorama:'c5864a8a9e814e15b7f3c4ed33d5bd90'},
   {label:'门厅发动机展台',x:70.8,z:39.8,probeY:-29.3,yaw:-1.31,pitch:.12,panorama:'c5864a8a9e814e15b7f3c4ed33d5bd90'},
-  {label:'一楼楼梯入口',x:60,z:33.04,probeY:-29.3,yaw:Math.PI/2,pitch:.06,panorama:'ebba6be3a12d46d7a97cfdd93d591ebc',detail:'从读卡柱之间进入。右转上短梯，走进圆形舱门前的试验大厅。左转上长梯，在平台折返可以继续往上。'}
+  {label:'一楼楼梯入口',x:60,z:33.04,probeY:-29.3,yaw:Math.PI/2,pitch:.06,panorama:'ebba6be3a12d46d7a97cfdd93d591ebc',detail:'从读卡柱之间进入。右转上短梯可到试验大厅。左转上长梯，在半层平台折返，走完第二段楼梯后直行，进入二楼指挥室。'},
+  {label:'二楼指挥室观察窗',x:53.20,z:23.90,probeY:-22.5,yaw:-.114,pitch:.03,panorama:'514be042bb094cb9a26226f7211bbe6c',detail:'窗上排着五块显示屏。站在工作桌后向外看，可以找到一楼的圆形试验舱门。西墙的大灯箱靠近楼梯入口。'},
+  {label:'二楼指挥室西墙灯箱',x:55.50,z:22.20,probeY:-22.5,yaw:Math.PI/2,pitch:.08,panorama:'514be042bb094cb9a26226f7211bbe6c',detail:'面向 HAAVK 灯箱时，左手边的门通往楼梯。转身沿中央浅色地砖走，可以到房间另一端。'}
 ];
 function chamberStop(view){return {...viewStop(view),panorama:view.panorama,...(view.detail?{detail:view.detail}:{})}}
 function verifyChamber(stops){
@@ -144,7 +146,8 @@ function verifyChamber(stops){
   // Follow the entrance and the first two flights using successive floor
   // samples. A ray from roof level would land on overlapping upper stairs.
   const route=[[73.46,48.3],[73.46,33.04],[55.05,33.04],
-    [55.05,12],[55.05,33.04],[55.05,42.5],[52.35,42.5],[52.35,31.2]];
+    [55.05,12],[55.05,33.04],[55.05,42.5],[52.35,42.5],[52.35,31.2],
+    [52.35,25.5],[53.20,23.90],[55.50,22.20]];
   let height=stops['黑室'].find(s=>s.label==='正门玻璃入口').y;
   for(let j=1;j<route.length;j++){
     const [sx,sz]=route[j-1],[ex,ez]=route[j],steps=Math.ceil(Math.hypot(ex-sx,ez-sz)/.20);
@@ -157,8 +160,12 @@ function verifyChamber(stops){
     }
     if(j===3&&Math.abs(height+29.09)>.035)throw Error('H4 pressure hatch approach changed');
     if(j===5&&Math.abs(height+26.529)>.035)throw Error('H4 first landing changed');
+    if(j===7&&Math.abs(height+23.972)>.035)throw Error('H4 return landing changed');
   }
-  if(Math.abs(height+23.972)>.035)throw Error('H4 return landing changed');
+  if(Math.abs(height+23.648)>.035)throw Error('H4 command room floor changed');
+  const eye=new THREE.Vector3(53.2,height+1.70,23.9),toHatch=new THREE.Vector3(58.58,-19.22,1.15).sub(eye);
+  const depth=toHatch.length(),hub=rays(tiles,eye,toHatch.normalize(),depth+1)[0];
+  if(!hub||Math.abs(hub.distance-depth)>.24)throw Error('H4 observation window has lost sight of the hatch');
 }
 const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
 const ladderFile=path.join(folder,'ladders.json');
@@ -194,7 +201,7 @@ if(process.argv.includes('--check-ladders')){
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
   verifyChamber(stops);
-  console.log('Verified H4 entrance, two stair flights, glass door approach and test-bay sill.');
+  console.log('Verified H4 entrance, both stair flights, command room, hatch sightline and test-bay sill.');
   for(const view of propViews)require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),propStop(view));
   for(const site of extraction.filter(site=>site.landing)){
     const actual=stops[site.region].find(stop=>stop.label===site.landing.label);

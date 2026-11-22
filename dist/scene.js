@@ -169,6 +169,7 @@ async function initialize3D(){
   loadVendingFinish().catch(error=>console.warn('售货机材质加载失败',error));
   loadChamber().catch(error=>console.warn('黑室材质加载失败',error));
   installFoyer().catch(error=>console.warn('黑室门厅加载失败',error));
+  installCommandRoom().catch(error=>console.warn('指挥室材质加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     cell.surfaces=finishes[cell.file];

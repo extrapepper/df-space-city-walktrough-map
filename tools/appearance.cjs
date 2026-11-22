@@ -34,7 +34,10 @@ function identifySurfaces(parts) {
   const rooms=require('../dist/data/training-rooms.json').surfaces;
   const chamber=require('./chamber.cjs'),firstChamber=firstRoom+rooms.length+1;
   chamber.prepareChamber(records,firstChamber);
-  require('./foyer.cjs').prepareFoyer(records,firstChamber+chamber.groups.length);
+  const foyer=require('./foyer.cjs'),firstFoyer=firstChamber+chamber.groups.length;
+  foyer.prepareFoyer(records,firstFoyer);
+  const command=require('./command.cjs'),firstCommand=firstFoyer+foyer.groups.length;
+  command.prepareCommandRoom(records,firstCommand);
   rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);
@@ -43,7 +46,7 @@ function identifySurfaces(parts) {
     }
   });
   for (const part of parts) {
-    if(part.freight)part.finish=firstRoom+rooms.length;
+    if(part.freight)part.finish=part.freight.style>10?firstCommand+command.groups.length:firstRoom+rooms.length;
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;
     if (part.id === 1022) part.finish = 3;

@@ -1,13 +1,16 @@
 // The source is Z-up. Store paint coordinates in the viewer's X, up, Z order,
 // before applying the instance transform so even mirrored stacks keep their finish.
-const types=new Map([[9,1],[17,2],[63,3],[98,4],[634,5],[604,10]]);
+const types=new Map([[9,1],[17,2],[63,3],[98,4],[634,5],[604,10],[962,11],[997,12],[1027,13],[89,14]]);
+const commandFinishes=require('./command.cjs').finishes;
 const variants=new Map([
   [2625,6],[2631,6],[2627,7],[5334,7],
   ...[5722,5724,5736,5738,5740,5744,5746].map(i=>[i,8]),
-  ...[5750,5752,5754,5762,5764,5768].map(i=>[i,9])
+  ...[5750,5752,5754,5762,5764,5768].map(i=>[i,9]),
+  [9031,15],[9182,16]
 ]);
 function freightFinish(hull,id,instance){
-  if(!types.has(id))return;
+  const style=variants.get(instance)||types.get(id)||commandFinishes.get(instance)?.style;
+  if(!style)return;
   if(!hull.paint){
     const order=[0,2,1],min=[Infinity,Infinity,Infinity];
     for(let i=0;i<hull.v.length;i++)min[i%3]=Math.min(min[i%3],hull.v[i]);
@@ -16,7 +19,7 @@ function freightFinish(hull,id,instance){
       hull.paint[i+axis]=Math.round((hull.v[i+k]-min[k])/hull.span[k]*255);
     }
   }
-  return {coords:hull.paint,style:variants.get(instance)||types.get(id)};
+  return {coords:hull.paint,style};
 }
 function packFreight(list,remap,count){
   if(!list.some(p=>p.freight))return;

@@ -189,6 +189,7 @@ async function main(){
   fs.writeFileSync(path.join(out,'vending.json'),JSON.stringify(cabinets));
   const basin=measureBasin(parts.find(p=>p.instance===4566&&p.id===599));
   fs.writeFileSync(path.join(out,'basin.gz'),zlib.gzipSync(JSON.stringify(basin)));
+  fs.writeFileSync(path.join(out,'command-screens.json'),JSON.stringify(require('./command.cjs').screenPrototype(parts)));
   const manifest=[];
   const overview=[];
   const surfaces={};
