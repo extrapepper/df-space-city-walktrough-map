@@ -28,6 +28,14 @@ function matchingBounds(a,b) {
 function identifySurfaces(parts) {
   const records = new Map(parts.map(p => [p.instance,p]));
   let nextCabinet=5+cabins.length;
+  const firstRoom=nextCabinet+parts.filter(p=>p.cabinetFrame).length;
+  require('../dist/data/training-rooms.json').surfaces.forEach((group,i)=>{
+    for(const [instance,hull] of group){
+      const part=records.get(instance);
+      if(part?.id!==hull)throw Error('Unmatched training room model '+instance);
+      part.finish=firstRoom+i;
+    }
+  });
   for (const part of parts) {
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;

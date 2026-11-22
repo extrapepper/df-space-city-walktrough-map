@@ -107,6 +107,17 @@ const ladderFile=path.join(folder,'ladders.json');
 if(process.argv.includes('--check-ladders')){
   require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(ladderFile)),ladders);
   console.log('Verified '+ladders.length+' ladder shafts, end supports and clearances against the collision meshes.');
+  const study=JSON.parse(fs.readFileSync(path.join(folder,'training-rooms.json')));
+  const eye=new THREE.Vector3(...study.eye);
+  for(const point of [[-58.39,-24.93,21.64],[-47.55,-25.27,23.20]]){
+    const dir=new THREE.Vector3(...point).sub(eye),distance=dir.length();
+    if(rays(tiles,eye,dir.normalize(),distance-.80).length)throw Error('Centrifuge reference view is obstructed');
+  }
+  const cross=new THREE.Vector3(-1,0,0);
+  for(const z of [19.40,19.65,19.90])for(const y of [-30.04,-29.35,-28.68]){
+    if(rays(tiles,new THREE.Vector3(-45.75,y,z),cross,3.5).length)throw Error('Blocked A door');
+  }
+  console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   return;
 }
 fs.writeFileSync(ladderFile,JSON.stringify(ladders));
@@ -132,6 +143,14 @@ const out={};for(const r of regions){
   }
   if(r.name==='码头区')out[r.name].push(viewStop({label:'南侧平台售货机',x:-48.655,z:140.532,probeY:-31.86,yaw:-.6285,pitch:-.1151}));
   if(r.name==='黑室')out[r.name].push(viewStop({label:'器材架旁售货机',x:54.770,z:22.709,probeY:-27.65,yaw:1.986,pitch:-.12}));
+  if(r.name==='离心机室'){
+    out[r.name].push(viewStop({label:'A 门入口',x:-45.75,z:19.65,probeY:-28.95,yaw:Math.PI/2,pitch:0}));
+    out[r.name].push(viewStop({label:'转臂训练舱',x:-62.8,z:15.6,probeY:-28.95,yaw:-2.94,pitch:.14}));
+  }
+  if(r.name==='蓝室'){
+    out[r.name].push(viewStop({label:'下沉平台上沿',x:74,z:-49,probeY:-28.9,yaw:.72,pitch:.46}));
+    out[r.name].push(viewStop({label:'试验台上层回廊',x:78.8,z:-69.5,probeY:-18.7,yaw:2.19,pitch:-.21}));
+  }
   console.log(r.name,out[r.name].map(l=>l.y));
 }
 fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));

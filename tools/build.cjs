@@ -39,9 +39,24 @@ const appearances = JSON.parse(gunzipSync(read('data/appearance.gz')));
 const nearRoles=new Set(Object.values(appearances).flatMap(cell=>(cell.near||[]).map(run=>run[2])));
 cabins.forEach((c,i)=>assert(nearRoles.has(4+i),'Missing measured cabin '+c.instance));
 const cabinetFaces=new Array(cabinets.length).fill(0),firstCabinet=5+cabins.length;
-for(const cell of Object.values(appearances)){
-  for(const [,count,role] of cell.near||[])if(role>=firstCabinet)cabinetFaces[role-firstCabinet]+=count;
+const training=json('training-rooms.json'),firstRoom=firstCabinet+cabinets.length;
+assert.equal(training.surfaces.length,7);
+assert.equal(training.windows.length,20);
+assert.equal(training.windows.filter(p=>p[2]>21.64).length,10);
+assert.equal(new Set(training.windows.map(p=>p.slice(0,3).join(','))).size,20);
+for(const [x,y,z,tx,tz,w,h] of training.windows){
+  assert(Math.abs(Math.hypot(tx,tz)-1)<.001&&Math.abs(y+24.93)<.03);
+  assert(w>1.18&&w<1.34&&h>1.75&&h<1.81&&Math.abs(Math.hypot(x+58.39,z-21.64)-11.55)<.14);
 }
+assert(training.eye.every(Number.isFinite)&&training.focal>0&&training.depth[1]>training.depth[0]);
+const trainingFaces=training.surfaces.map(()=>0);
+for(const cell of Object.values(appearances)){
+  for(const [,count,role] of cell.near||[]){
+    if(role>=firstRoom)trainingFaces[role-firstRoom]+=count;
+    else if(role>=firstCabinet)cabinetFaces[role-firstCabinet]+=count;
+  }
+}
+assert.deepEqual(trainingFaces,[7001+8370+1456,2861+88,4*64+2*92,2*856+1332,5558,9563,5868]);
 cabinetFaces.forEach((n,i)=>assert.equal(n,227,'Vending machine '+cabinets[i].instance));
 const knownCells = new Set(cells.map(cell => cell.file));
 for (const file of Object.keys(appearances)) assert(knownCells.has(file), file);
@@ -70,8 +85,8 @@ function meshEnd(bytes, offset, runs = []) {
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<firstCabinet+cabinets.length, 'Invalid triangle material range');
-    if(role>=firstCabinet)checkCabinetFrame(bytes,offset,vertices,face,count,role);
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<firstRoom+training.surfaces.length, 'Invalid triangle material range');
+    if(role>=firstCabinet&&role<firstRoom)checkCabinetFrame(bytes,offset,vertices,face,count,role);
   }
   return offset + 32 + vertices * 7 + indices * (vertices > 65535 ? 4 : 2);
 }
@@ -94,6 +109,7 @@ for(const [i,[lo,hi,a,b]] of basin.layers.entries()){
 for(const ring of rings)assert(ring.length===256&&ring.every(cm=>cm>400&&cm<3200));
 assert(nearRoles.has(4+cabins.length));
 for(const file of ['flood-console.webp','flood-housing.webp','vending-finish.webp'])assert(read('data/'+file).length>0,file);
+for(const file of ['blue-room','centrifuge','centrifuge-study','training-materials'])assert(read('data/'+file+'.webp').subarray(8,12).toString()==='WEBP',file);
 const landings = json('landings.json');
 require('node:child_process').execFileSync(process.execPath,[path.join(__dirname,'landings.cjs'),'--check-ladders'],{stdio:'inherit'});
 for (const point of json('regions.json')) assert(landings[point.name]?.length, point.name);

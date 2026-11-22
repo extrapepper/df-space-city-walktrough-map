@@ -96,6 +96,10 @@ void main(){
  base+=.016*(noise-.5);
  base=registeredSurface(base,n);
  base=labFinish(base,world,n);
+ // The upper gallery and fixtures share the blue light of H3's lined test bay.
+ vec3 interiorMargin=min(world-vec3(51.26,-35.,-73.05),vec3(82.20,-13.6,-44.94)-world);
+ float blueLight=smoothstep(0.,.36,min(interiorMargin.x,min(interiorMargin.y,interiorMargin.z)));
+ base*=mix(vec3(1.),mix(vec3(.68,.76,.91),vec3(.45,.56,.83),smoothstep(-31.,-25.,world.y)),blueLight);
  float fall=smoothstep(360.,650.,length((world.xz-vec2(0.,22.))*vec2(1.18,.9)));
  base=mix(base,vec3(.115,.153,.135),fall*.89);
  float wetPath=distance(cameraPosition,world)*clamp((immersionLevel-cameraPosition.y)/max(.001,world.y-cameraPosition.y),0.,1.);
@@ -137,7 +141,7 @@ async function initialize3D(){
   gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
   target=new THREE.Vector3(0,-25,24);
-  const [field,manifest,overview,water,appearance,cabins,basin,routes,cabinets]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz'),jsonFile('lab-equipment.json'),inflated('basin.gz'),jsonFile('ladders.json'),jsonFile('vending.json')]);
+  const [field,manifest,overview,water,appearance,cabins,basin,routes,cabinets,training]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz'),jsonFile('lab-equipment.json'),inflated('basin.gz'),jsonFile('ladders.json'),jsonFile('vending.json'),jsonFile('training-rooms.json')]);
   ladders=routes;
   const finishes=JSON.parse(new TextDecoder().decode(appearance));
   const photo=new THREE.Texture(atlas);
@@ -155,7 +159,8 @@ async function initialize3D(){
     surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
     surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
   });
-  architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets);
+  architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets,training);
+  installTrainingRooms(training).catch(error=>console.warn('训练室材质加载失败',error));
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
   loadLabFinish().catch(error=>console.warn('浮力室材质加载失败',error));
@@ -276,6 +281,10 @@ function hit(origin,direction,length){
     if(Math.max(origin.x,end.x)<b.min.x||Math.min(origin.x,end.x)>b.max.x||Math.max(origin.z,end.z)<b.min.z||Math.min(origin.z,end.z)>b.max.z||Math.max(origin.y,end.y)<b.min.y||Math.min(origin.y,end.y)>b.max.y)continue;
     if(!mesh.geometry.boundsTree)mesh.geometry.boundsTree=new MeshBVHLib.MeshBVH(mesh.geometry,{maxLeafTris:14});
     rays.length=0;mesh.raycast(cast,rays);if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
+  }
+  if(trainingGlass&&trainingGlass.geometry.boundingBox.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(trainingGlass.geometry.boundingBox)){
+    rays.length=0;trainingGlass.raycast(cast,rays);
+    for(const pane of rays)if(!best||pane.distance<best.distance)best=pane;
   }
   if(officeBounds&&cast.ray.intersectsBox(officeBounds)&&officeBounds.distanceToPoint(origin)<=length){
     rays.length=0;cast.intersectObjects(officeSolids,false,rays);

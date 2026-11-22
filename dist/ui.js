@@ -51,7 +51,7 @@ function filterPlaces(){
   if(!root.children.length){const p=document.createElement('p');p.className='subdued';p.textContent='未找到匹配的地标';root.append(p)}
 }
 $('search').oninput=filterPlaces;
-const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay','码头区':'dock','总裁室':'ceo','浮力室':'buoyancy'};
+const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay','码头区':'dock','总裁室':'ceo','浮力室':'buoyancy','离心机室':'centrifuge','蓝室':'blue-room'};
 $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
@@ -67,7 +67,7 @@ $('reference-photo').onclick=()=>{
   }
   const pose=surveyViews.get(key);
   const filename=key==='launch'&&pose?'overview-photo':key;
-  const credit=['dock','buoyancy'].includes(key)?'画面来自《三角洲行动》官方蝶变赛季介绍。':'画面来自《三角洲行动》官方航天基地介绍。';
+  const credit=['centrifuge','blue-room'].includes(key)?'画面来自《三角洲行动》2024 年发布的<a href="https://www.taptap.cn/moment/564129131101424794" target="_blank" rel="noreferrer">航天基地进阶攻略</a>。':['dock','buoyancy'].includes(key)?'画面来自《三角洲行动》官方蝶变赛季介绍。':'画面来自《三角洲行动》官方航天基地介绍。';
   setDialog(chosen.name+' · 游戏画面','<img class="reference" alt="'+chosen.name+'游戏内参考画面" src="data/'+filename+'.webp"><p>'+credit+'</p>');
   if(!pose)return;
   const button=document.createElement('button');

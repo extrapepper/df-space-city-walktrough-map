@@ -1,6 +1,6 @@
 'use strict';
 let architecturalMaterials;
-function makeArchitecturalMaterials(base,cabins,cabinets){
+function makeArchitecturalMaterials(base,cabins,cabinets,study){
   const vertexShader=`varying vec3 sitePosition;
     void main(){sitePosition=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
   const shader=(fragmentShader,transparent=false)=>new THREE.ShaderMaterial({
@@ -70,7 +70,8 @@ function makeArchitecturalMaterials(base,cabins,cabinets){
     }`);
   rung.uniforms={submerged:labUniforms.submerged,immersionTint:labUniforms.immersionTint,
     immersionLevel:labUniforms.immersionLevel,finishReady:base.uniforms.finishReady,finishColor:base.uniforms.finishColor};
-  return [base,glass,collider,steel,...cabins.map(makeCabinMaterial),rung,...cabinets.map(makeVendingMaterial)];
+  return [base,glass,collider,steel,...cabins.map(makeCabinMaterial),rung,...cabinets.map(makeVendingMaterial),
+    ...study.surfaces.map((_,i)=>makeTrainingMaterial(i))];
 }
 async function registerSteelPhoto(p){
   const photo=await new THREE.TextureLoader().loadAsync('data/sculpture-finish.webp');
