@@ -114,6 +114,27 @@ function freightStop(view){
   if(!hit||hit.distance<view.reach-.5)throw Error('Obstructed freight approach at '+view.label);
   return stop;
 }
+const chamberViews=[
+  {label:'试验台南侧',x:36.55,z:20.54,probeY:-28,yaw:-.325,pitch:.30,panorama:'7dcb597ea0214feeacd3096cd4d6223b'},
+  {label:'圆形舱门',x:55,z:12,probeY:-28,yaw:-.309,pitch:.52,panorama:'9975712dcc694b5085cae9c63e1c3f31'},
+  {label:'蓝色试验舱门槛',x:41.4,z:-1.15,probeY:-28,yaw:0,pitch:.09,panorama:'9975712dcc694b5085cae9c63e1c3f31'}
+];
+function chamberStop(view){return {...viewStop(view),panorama:view.panorama}}
+function verifyChamber(stops){
+  const panoramas=JSON.parse(fs.readFileSync(path.join(folder,'room-views.json')))['黑室'];
+  for(const v of chamberViews){
+    if(!panoramas.some(s=>s.id===v.panorama))throw Error('Missing panorama for '+v.label);
+    require('node:assert/strict').deepEqual(stops['黑室'].find(s=>s.label===v.label),chamberStop(v));
+  }
+  for(const x of [40.8,41.4,42]){
+    const ground=z=>rays(tiles,new THREE.Vector3(x,-28.1,z),down,1.5)[0]?.point.y;
+    const rise=ground(-3.15)-ground(-2.5);
+    if(!(rise>.70&&rise<.76))throw Error('H4 test chamber sill height changed');
+    for(const y of [-28.08,-27.25,-26.25]){
+      if(rays(tiles,new THREE.Vector3(x,y,-1.15),new THREE.Vector3(0,0,-1),5).length)throw Error('Blocked H4 test chamber opening');
+    }
+  }
+}
 const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
 const ladderFile=path.join(folder,'ladders.json');
 const extraction=JSON.parse(fs.readFileSync(path.join(folder,'extraction.json'),'utf8'));
@@ -147,6 +168,8 @@ if(process.argv.includes('--check-ladders')){
   }
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
+  verifyChamber(stops);
+  console.log('Verified H4 panorama links, walking starts, sill rise and clearance into the test bay.');
   for(const view of freightViews)require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),freightStop(view));
   for(const site of extraction.filter(site=>site.landing)){
     const actual=stops[site.region].find(stop=>stop.label===site.landing.label);
@@ -179,6 +202,7 @@ const out={};for(const r of regions){
   }
   if(r.name==='码头区')out[r.name].push(viewStop({label:'南侧平台售货机',x:-48.655,z:140.532,probeY:-31.86,yaw:-.6285,pitch:-.1151}));
   if(r.name==='黑室')out[r.name].push(viewStop({label:'器材架旁售货机',x:54.770,z:22.709,probeY:-27.65,yaw:1.986,pitch:-.12}));
+  if(r.name==='黑室')out[r.name].unshift(...chamberViews.map(chamberStop));
   if(r.name==='离心机室'){
     out[r.name].push(viewStop({label:'A 门入口',x:-45.75,z:19.65,probeY:-28.95,yaw:Math.PI/2,pitch:0}));
     out[r.name].push(viewStop({label:'转臂训练舱',x:-62.8,z:15.6,probeY:-28.95,yaw:-2.94,pitch:.14}));

@@ -1,6 +1,6 @@
 // The source is Z-up. Store paint coordinates in the viewer's X, up, Z order,
 // before applying the instance transform so even mirrored stacks keep their finish.
-const types=new Map([[9,1],[17,2],[63,3],[98,4],[634,5]]);
+const types=new Map([[9,1],[17,2],[63,3],[98,4],[634,5],[604,10]]);
 const variants=new Map([
   [2625,6],[2631,6],[2627,7],[5334,7],
   ...[5722,5724,5736,5738,5740,5744,5746].map(i=>[i,8]),

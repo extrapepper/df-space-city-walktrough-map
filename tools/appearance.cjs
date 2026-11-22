@@ -12,6 +12,7 @@ const cabins=require('../dist/data/lab-equipment.json');
 const cabinFinishes=new Map(cabins.map((c,index)=>[c.instance,{role:4+index,hull:c.hull}]));
 // Visually inspected low/high shape pairs. Bounds alone also match unrelated objects.
 const twins = new Map([
+  [604,[603,1092,1183]],
   [9,[8]], [17,[16]], [634,[633,1462]], [255,[254,628,1096]],
   [63,[62,221,563,431,364]], [249,[248]], [89,[87]], [484,[483]],
   [6,[1]], [13,[164,170]], [847,[846]], [49,[48]], [166,[165]],
@@ -31,6 +32,7 @@ function identifySurfaces(parts) {
   let nextCabinet=5+cabins.length;
   const firstRoom=nextCabinet+parts.filter(p=>p.cabinetFrame).length;
   const rooms=require('../dist/data/training-rooms.json').surfaces;
+  require('./chamber.cjs').prepareChamber(records,firstRoom+rooms.length+1);
   rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);
@@ -78,7 +80,7 @@ function identifySurfaces(parts) {
 // Runs reference triangle offsets in the original index buffer. The packed meshes
 // retain all their original vertices and triangles for collision and reproduction.
 function surfaceRuns(list,index,lod) {
-  if (!list.some(h => h.twin || h.panes || h.backing || h.finish)) return [];
+  if (!list.some(h => h.twin || h.panes || h.backing || h.finish || h.coating)) return [];
   const roles = new Uint8Array(index.length/3);
   const owners = lod ? new Uint32Array(list.reduce((s,h) => s+h.v.length/3,0)) : null;
   const faceMaterials = lod ? new Uint8Array(owners.length) : null;
@@ -87,7 +89,7 @@ function surfaceRuns(list,index,lod) {
     const count=h.idx.length/3,vertices=h.v.length/3,role=h.twin?2:h.finish||0;
     if (lod) owners.fill(owner,vert,vert+vertices);
     else if (role) roles.fill(role,face,face+count);
-    const faces=h.panes||h.backing, coating=h.backing?2:1;
+    const faces=h.panes||h.backing||h.coating?.faces, coating=h.coating?.role||(h.backing?2:1);
     for (const f of faces || []) {
       if (!lod) roles[face+f]=coating;
       else for (let j=0;j<3;j++) faceMaterials[vert+h.idx[3*f+j]]=coating;

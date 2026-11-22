@@ -167,6 +167,7 @@ async function initialize3D(){
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
   loadLabFinish().catch(error=>console.warn('浮力室材质加载失败',error));
   loadVendingFinish().catch(error=>console.warn('售货机材质加载失败',error));
+  loadChamber().catch(error=>console.warn('黑室材质加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     cell.surfaces=finishes[cell.file];

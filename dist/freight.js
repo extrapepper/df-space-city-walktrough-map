@@ -36,7 +36,7 @@ function makeFreightMaterial(){
           panel=container?1.:0.;uv=vec2(q.z>.5?q.x:1.-q.x,1.-q.y);
         }
         vec2 cell=vec2(512.,256.),texel=vec2(panel,style-1.)*cell+4.5+clamp(uv,0.,1.)*(cell-9.);
-        vec3 base=ready>.5?texture2D(finish,texel/vec2(1536.,2304.)).rgb:vec3(.43,.44,.44);
+        vec3 base=ready>.5?texture2D(finish,texel/vec2(1536.,2560.)).rgb:vec3(.43,.44,.44);
         vec3 n=normalize(cross(dFdx(site),dFdy(site))),eye=normalize(cameraPosition-site);
         float sun=dot(n,normalize(vec3(-.48,.86,-.38)));
         vec4 h=texture2D(elevation,clamp((site.xz+512.5)/1024.,0.,1.));

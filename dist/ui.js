@@ -14,7 +14,7 @@ fly:'<path d="m21 3-6 18-4-8-8-4zm-10 10L21 3"/>',walk:'<circle cx="14" cy="4" r
 document.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+shapes[el.dataset.icon]+'</svg>');
 const groups=[
   {name:'北部园区',places:[['宿舍区','从西侧宿舍的弧窗客房可以俯看园区，向东可到中控区。'],['中控区','从楼内南侧斜窗可看见中控桥。过桥后进入核心区。'],['中控桥','连接北侧中控区和南侧核心区的桥梁。'],['工业区','基地东侧的工业厂房，南侧邻近罐装区。'],['罐装区','沿东侧弧形道路辨认成组的储罐。']]},
-  {name:'核心区',places:[['离心机室','核心区西南侧的实验楼，北面是浮力室。'],['浮力室','核心区西北侧，与东侧的蓝室隔道相望。可从控制台练习注水，或从池底沿两段黄梯返回上层。'],['蓝室','位于核心区东北侧，黑室在它的南面。'],['黑室','核心区东南侧的研究建筑。'],['总裁室','位于核心区上层。默认起点在办公室层的电脑附近，也可从金属雕塑前厅出发。'],['中心花园','核心区南侧的开放空间。']]},
+  {name:'核心区',places:[['离心机室','核心区西南侧的实验楼，北面是浮力室。'],['浮力室','核心区西北侧，与东侧的蓝室隔道相望。可从控制台练习注水，或从池底沿两段黄梯返回上层。'],['蓝室','位于核心区东北侧，黑室在它的南面。'],['黑室','核心区东南侧的 H4 实验楼。沿试验台走到蓝色拱形舱，向前跳过门槛即可进舱。'],['总裁室','位于核心区上层。默认起点在办公室层的电脑附近，也可从金属雕塑前厅出发。'],['中心花园','核心区南侧的开放空间。']]},
   {name:'南部设施',places:[['水平试车场','沿南部栈桥查看东侧的试车设施。'],['发射区','基地西南方向的发射设施，与水平试车场隔水相望。'],['码头区','核心区西南侧的临水建筑。可从不同楼层出发，也可以在岸前下水。']]}
 ];
 let points=[], chosen=null, view='orbit', isFlat=false, ready=false, hasGL=false, toastTimer;
@@ -51,7 +51,7 @@ function filterPlaces(){
   if(!root.children.length){const p=document.createElement('p');p.className='subdued';p.textContent='未找到匹配的地标';root.append(p)}
 }
 $('search').oninput=filterPlaces;
-const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay','码头区':'dock','总裁室':'ceo','浮力室':'buoyancy','离心机室':'centrifuge','蓝室':'blue-room'};
+const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工业区':'industry','发射区':'launch','水平试车场':'testbay','码头区':'dock','总裁室':'ceo','浮力室':'buoyancy','离心机室':'centrifuge','蓝室':'blue-room','黑室':'chamber'};
 $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
@@ -112,7 +112,8 @@ $('show-room-views').onclick=async()=>{
     roomViewIndex??=await jsonFile('room-views.json');
     if(request!==roomOpenRequest||!$('room-dialog').open)return;
     const stops=roomViewIndex[place.name];
-    const preferred=stops.find(s=>s.name===place.name+'门口')||stops.find(s=>s.name.includes('门口大厅'))||stops[0];
+    const panorama=place.landings[Number($('landing').value)]?.panorama;
+    const preferred=stops.find(s=>s.id===panorama)||stops.find(s=>s.name===place.name+'门口')||stops.find(s=>s.name.includes('门口大厅'))||stops[0];
     $('room-stop').replaceChildren(...stops.map(s=>new Option(s.name,s.id,false,s===preferred)));
     showRoomView();
   }catch{
