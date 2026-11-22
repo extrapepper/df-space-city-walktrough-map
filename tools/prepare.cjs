@@ -187,6 +187,7 @@ async function main(){
     c.juice=c.instance===9095||hasLeft;
   });
   fs.writeFileSync(path.join(out,'vending.json'),JSON.stringify(cabinets));
+  fs.writeFileSync(path.join(out,'palms.json'),JSON.stringify(require('./palms.cjs').collectPalms(parts)));
   const basin=measureBasin(parts.find(p=>p.instance===4566&&p.id===599));
   fs.writeFileSync(path.join(out,'basin.gz'),zlib.gzipSync(JSON.stringify(basin)));
   fs.writeFileSync(path.join(out,'command-screens.json'),JSON.stringify(require('./command.cjs').screenPrototype(parts)));

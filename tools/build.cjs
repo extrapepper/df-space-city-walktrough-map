@@ -70,9 +70,31 @@ const officeRole=firstCommand+commandFaces.length;
 const serverRole=officeRole+1,labServerRole=serverRole+1;
 const suiteFaces=require('./suite.cjs').groups.map(()=>0),firstSuite=labServerRole+1;
 const strappedCrateRole=firstSuite+suiteFaces.length;
-let labServerFaces=0;
+const palmRole=strappedCrateRole+1,palms=json('palms.json'),palmShapes=require('./palms.cjs');
+assert.deepEqual(palmShapes.counts.map((_,k)=>palms.native.filter(t=>t.hull===1384+k).length),palmShapes.counts);
+assert(palms.native.every((t,i)=>t.id===12947+i));
+assert.equal(palms.courtyard.length,4);
+const controlCamera=json('survey-cameras.json').find(p=>p.name==='control');
+const crownPixels=[[194,240],[241,218],[423,215],[495,258]];
+palms.courtyard.forEach((tree,i)=>{
+  const d=tree.tip.map((v,k)=>v-controlCamera.eye[k]);
+  const [x,y,z]=controlCamera.rotation.map(row=>row.reduce((sum,k,j)=>sum+k*d[j],0));
+  const [u,v]=crownPixels[i];
+  assert(z>0&&Math.hypot(x/z*controlCamera.focal+controlCamera.width/2-u,
+    y/z*controlCamera.focal+controlCamera.height/2-v)<1.2,'Forecourt crown misses the filmed trunk');
+});
+for(const t of [...palms.native,...palms.courtyard]){
+  assert(t.foot.length===3&&t.tip.length===3&&[...t.foot,...t.tip].every(Number.isFinite));
+  assert(t.tip[1]-t.foot[1]>2.7&&t.tip[1]-t.foot[1]<21);
+}
+const frond=read('data/palm-frond.webp');
+assert.equal(frond.subarray(8,16).toString(),'WEBPVP8X');
+assert(frond[20]&16,'The palm leaflets require alpha');
+assert.equal(read('data/palm-bark.webp').subarray(8,12).toString(),'WEBP');
+let labServerFaces=0,palmFaces=0;
 for(const cell of Object.values(appearances)){
   for(const [,count,role] of cell.near||[]){
+    if(role===palmRole){palmFaces+=count;continue}
     if(role===strappedCrateRole)continue;
     if(role>=firstSuite){suiteFaces[role-firstSuite]+=count;continue}
     if(role===labServerRole){labServerFaces+=count;continue}
@@ -90,6 +112,7 @@ assert.deepEqual(chamberFaces,[1048+967,9563,630+228,2*(132+127+94+218+135),386,
 assert.deepEqual(foyerFaces,[2363+171,1085,6461,70*4+206,4053,1392+50+568,3*123+469,1085,6461,6461]);
 assert.deepEqual(commandFaces,[494,6*56,122]);
 assert.equal(labServerFaces,106+156);
+assert.equal(palmFaces,palmShapes.counts.reduce((sum,n,i)=>sum+n*palmShapes.faces[i],0));
 assert.deepEqual(suiteFaces,[3047,4*509+2*383,2*364,2*178,2152+2510]);
 cabinetFaces.forEach((n,i)=>assert.equal(n,227,'Vending machine '+cabinets[i].instance));
 const knownCells = new Set(cells.map(cell => cell.file));
@@ -135,7 +158,7 @@ function meshEnd(bytes, offset, runs = [],paint,near=false) {
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=strappedCrateRole, 'Invalid triangle material range');
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=palmRole, 'Invalid triangle material range');
     if(role===freightRole||role===officeRole||role===serverRole||role===strappedCrateRole){
       assert(styles);
       for(let f=face;f<last;f++){

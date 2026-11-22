@@ -19,6 +19,7 @@ const twins = new Map([
   [53,[52]], [1054,[1053]], [1022,[1021]]
 ]);
 const palletShells=new Map([[96,97],[1508,1509],[1510,1511],[1515,1516],[1645,1646]]);
+const {isPalm}=require('./palms.cjs');
 function matchingBounds(a,b) {
   // A paired surface must load and unload with its visible counterpart.
   if(a.cell!==b.cell)return false;
@@ -49,6 +50,7 @@ function identifySurfaces(parts) {
     }
   });
   for (const part of parts) {
+    if(isPalm(part))part.finish=firstSuite+suite.groups.length+1;
     if(part.freight){
       const style=part.freight.style,officeRole=firstCommand+command.groups.length;
       part.finish=style===32?firstSuite+suite.groups.length:style>=24?officeRole+1:style>10?officeRole:firstRoom+rooms.length;

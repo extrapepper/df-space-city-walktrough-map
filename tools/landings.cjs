@@ -137,6 +137,31 @@ const serverViews=[
   {region:'蓝室',label:'二楼机柜区北门',x:47,z:-45.4,probeY:-18.8,yaw:Math.PI,pitch:.015,detail:'穿过北门向左转，沿两列机柜之间的过道往东走。遇到横倒的窄柜，保持移动并按空格起跳。'}
 ];
 function interiorStop(view){return {...viewStop(view),...(view.panorama?{panorama:view.panorama}:{}),...(view.detail?{detail:view.detail}:{})}}
+const palmWalks=[
+  {region:'宿舍区',label:'D 楼棕榈步道',x:-167.4,z:-118,probeY:-34,yaw:Math.PI,pitch:.40,detail:'顺着步道向前是宿舍 D 楼旁的棕榈树。从树干侧面绕过，按 M 可看自己与宿舍区的位置。'},
+  {region:'工业区',label:'B1 楼路边棕榈',x:211.25,z:-211.2,probeY:-36,yaw:Math.PI,pitch:.30,detail:'面前的树位于 B1 厂房旁。向前下到路面可以走近树干，沿路转身可辨认厂房外墙。'},
+  {region:'中控区',label:'楼前棕榈花池',x:-4,z:-188,probeY:-31,yaw:0,pitch:.21,detail:'面对中控楼，两侧花池里各有两棵棕榈。沿正前方的台阶上行，可从花池之间到达楼前平台。'}
+];
+function verifyPalmWalks(stops){
+  const assert=require('node:assert/strict'),trees=JSON.parse(fs.readFileSync(path.join(folder,'palms.json')));
+  for(const v of palmWalks)assert.deepEqual(stops[v.region].find(s=>s.label===v.label),interiorStop(v));
+  for(const [i,id] of [13037,13211].entries()){
+    const start=palmWalks[i],tree=trees.native.find(t=>t.id===id),pos=new THREE.Vector3(start.x,tree.foot[1]+1.6,start.z);
+    const h=rays(tiles,pos,new THREE.Vector3(0,0,1),16)[0];
+    assert(h && Math.abs(h.point.z-tree.foot[2])<.7,'Cannot reach original trunk from '+start.label);
+  }
+  for(const t of trees.courtyard){
+    const [x,y,z]=t.foot,p=rays(tiles,new THREE.Vector3(x,y+.24,z),down,.50)[0];
+    assert(p&&Math.abs(p.point.y-y)<.035,'Unsupported forecourt palm');
+  }
+  let y=-33.52;
+  for(let z=-189;z>=-211;z-=.25){
+    const h=rays(tiles,new THREE.Vector3(-4,y+.47,z),down,1.25)[0];
+    assert(h&&Math.abs(h.point.y-y)<.47,'Blocked control forecourt steps');y=h.point.y;
+    assert(!rays(tiles,new THREE.Vector3(-4,y+.045,z),up,1.85).length);
+  }
+  assert(y> -29.7 && y< -29.0);
+}
 const blueHall=JSON.parse(fs.readFileSync(path.join(folder,'blue-hall.json')));
 const [southView,northView]=blueHall.views;
 const blueViews=[
@@ -354,6 +379,8 @@ if(process.argv.includes('--check-ladders')){
   }
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
+  verifyPalmWalks(stops);
+  console.log('Verified original dorm and B1 trunks, four forecourt tree bases and the central stairway.');
   verifyChamber(stops);
   verifyServerRooms(stops);
   verifyBlueHall(stops);
@@ -374,6 +401,7 @@ fs.writeFileSync(ladderFile,JSON.stringify(ladders));
 const out={};for(const r of regions){
   out[r.name]=buildStops(r);
   if(views[r.name])out[r.name].push(viewStop(views[r.name]));
+  out[r.name].push(...palmWalks.filter(v=>v.region===r.name).map(interiorStop));
   for(const view of propViews.filter(v=>v.region===r.name))out[r.name].push(propStop(view));
   if(r.name==='浮力室'){
     out[r.name].unshift(

@@ -187,6 +187,7 @@ async function initialize3D(){
   installPool(JSON.parse(new TextDecoder().decode(basin)));
   installOffice().catch(error=>console.warn('总裁室陈设加载失败',error));
   installSuite().catch(error=>console.warn('总裁室会客厅加载失败',error));
+  installPalms().catch(error=>console.warn('室外棕榈加载失败',error));
   grid=new THREE.GridHelper(3200,128,0x48584c,0x374238);grid.position.y=-95;scene.add(grid);
   glReady=hasGL=true;resize3D();home3D();orbitCamera();
 }
@@ -294,9 +295,10 @@ function hit(origin,direction,length){
     if(!mesh.geometry.boundsTree)mesh.geometry.boundsTree=new MeshBVHLib.MeshBVH(mesh.geometry,{maxLeafTris:14});
     rays.length=0;mesh.raycast(cast,rays);if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
   }
-  if(trainingGlass&&trainingGlass.geometry.boundingBox.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(trainingGlass.geometry.boundingBox)){
-    rays.length=0;trainingGlass.raycast(cast,rays);
-    for(const pane of rays)if(!best||pane.distance<best.distance)best=pane;
+  for(const object of [trainingGlass,courtyardTrunks]){
+    if(!object||object.geometry.boundingBox.distanceToPoint(origin)>length||!cast.ray.intersectsBox(object.geometry.boundingBox))continue;
+    rays.length=0;object.raycast(cast,rays);
+    for(const h of rays)if(!best||h.distance<best.distance)best=h;
   }
   for(const tray of terminalTrays)if(tray.bounds.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(tray.bounds)){
     rays.length=0;tray.mesh.raycast(cast,rays);
