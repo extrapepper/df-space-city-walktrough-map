@@ -82,6 +82,11 @@ $('reference-photo').onclick=()=>{
   button.onclick=()=>{$('dialog').close();visitSurvey(pose)};
   $('dialog-body').append(button);
 };
+function describeLanding(){
+  const stop=chosen?.landings[Number($('landing').value)];
+  if(chosen)$('detail-text').textContent=stop?.detail||chosen.description;
+}
+$('landing').onchange=describeLanding;
 function selectPlace(item) {
   if(!ready)return;
   cancelArrival();chosen=item;
@@ -90,7 +95,7 @@ function selectPlace(item) {
   $('landing').replaceChildren(...item.landings.map((spot,index)=>new Option((spot.label?spot.label+' · ':'高度 ')+spot.y.toFixed(1)+' m',String(index))));
   $('landing-label').hidden=!glReady||!item.landings.length;
   $('sidebar').classList.remove('open');
-  $('detail-group').textContent=item.id+' / '+item.group;$('detail-name').textContent=item.name;$('detail-text').textContent=item.description;$('selection').hidden=false;
+  $('detail-group').textContent=item.id+' / '+item.group;$('detail-name').textContent=item.name;describeLanding();$('selection').hidden=false;
   points.forEach(p=>p.pin.classList.toggle('active',p===item));filterPlaces();
   if(isFlat)flatFocus(item);else focusPoint(item);syncMode();dirty=true;
 }

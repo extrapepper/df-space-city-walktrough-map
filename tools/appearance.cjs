@@ -32,7 +32,9 @@ function identifySurfaces(parts) {
   let nextCabinet=5+cabins.length;
   const firstRoom=nextCabinet+parts.filter(p=>p.cabinetFrame).length;
   const rooms=require('../dist/data/training-rooms.json').surfaces;
-  require('./chamber.cjs').prepareChamber(records,firstRoom+rooms.length+1);
+  const chamber=require('./chamber.cjs'),firstChamber=firstRoom+rooms.length+1;
+  chamber.prepareChamber(records,firstChamber);
+  require('./foyer.cjs').prepareFoyer(records,firstChamber+chamber.groups.length);
   rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);

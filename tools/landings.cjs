@@ -102,24 +102,31 @@ function viewStop({label,x,z,probeY,yaw,pitch}){
   if(rays(tiles,origin,up,1.95).length)throw Error('Insufficient headroom at '+label);
   return {label,x,y:+floor.point.y.toFixed(3),z,yaw:+yaw.toFixed(4),pitch};
 }
-const freightViews=[
+const propViews=[
   {region:'中控区',label:'楼前双层集装箱',x:7.74,z:-179.11,probeY:-32.5,yaw:-.3927,pitch:.14,reach:7.3},
   {region:'中控桥',label:'桥面运输箱',x:4,z:-122.11,probeY:-24,yaw:1.1781,pitch:-.12,reach:3.0},
-  {region:'中心花园',label:'货箱间通道',x:36.73,z:118.14,probeY:-33,yaw:1.1781,pitch:-.14,reach:3.35}
+  {region:'中心花园',label:'货箱间通道',x:36.73,z:118.14,probeY:-33,yaw:1.1781,pitch:-.14,reach:3.35},
+  {region:'浮力室',label:'门厅宇航服展台',x:-76.742,z:-68.923,probeY:-29.3,yaw:-.733,pitch:.095,reach:3.59},
+  {region:'浮力室',label:'门厅发动机展台',x:-65.9,z:-69.7,probeY:-29.3,yaw:-1.0761,pitch:.095,reach:5.34},
+  {region:'水平试车场',label:'横置发动机',x:159.694,z:238.188,probeY:-30.85,yaw:Math.PI/2,pitch:.099,reach:3.94}
 ];
-function freightStop(view){
+function propStop(view){
   const stop=viewStop(view),eye=new THREE.Vector3(stop.x,stop.y+1.7,stop.z);
   const direction=new THREE.Vector3(-Math.sin(stop.yaw)*Math.cos(stop.pitch),Math.sin(stop.pitch),-Math.cos(stop.yaw)*Math.cos(stop.pitch));
   const hit=rays(tiles,eye,direction,view.reach+1.3)[0];
-  if(!hit||hit.distance<view.reach-.5)throw Error('Obstructed freight approach at '+view.label);
+  if(!hit||hit.distance<view.reach-.5)throw Error('Obstructed prop at '+view.label);
   return stop;
 }
 const chamberViews=[
   {label:'试验台南侧',x:36.55,z:20.54,probeY:-28,yaw:-.325,pitch:.30,panorama:'7dcb597ea0214feeacd3096cd4d6223b'},
   {label:'圆形舱门',x:55,z:12,probeY:-28,yaw:-.309,pitch:.52,panorama:'9975712dcc694b5085cae9c63e1c3f31'},
-  {label:'蓝色试验舱门槛',x:41.4,z:-1.15,probeY:-28,yaw:0,pitch:.09,panorama:'9975712dcc694b5085cae9c63e1c3f31'}
+  {label:'蓝色试验舱门槛',x:41.4,z:-1.15,probeY:-28,yaw:0,pitch:.09,panorama:'9975712dcc694b5085cae9c63e1c3f31'},
+  {label:'正门玻璃入口',x:73.46,z:48.3,probeY:-29.3,yaw:0,pitch:.06,panorama:'c5864a8a9e814e15b7f3c4ed33d5bd90',detail:'从两扇玻璃门之间进大厅。左边是宇航服，右边是发动机。顺着左墙上的 STAIRS 标记可以找到楼梯间。'},
+  {label:'门厅宇航服展台',x:69.35,z:37.0,probeY:-29.3,yaw:1.78,pitch:.11,panorama:'c5864a8a9e814e15b7f3c4ed33d5bd90'},
+  {label:'门厅发动机展台',x:70.8,z:39.8,probeY:-29.3,yaw:-1.31,pitch:.12,panorama:'c5864a8a9e814e15b7f3c4ed33d5bd90'},
+  {label:'一楼楼梯入口',x:60,z:33.04,probeY:-29.3,yaw:Math.PI/2,pitch:.06,panorama:'ebba6be3a12d46d7a97cfdd93d591ebc',detail:'从读卡柱之间进入。右转上短梯，走进圆形舱门前的试验大厅。左转上长梯，在平台折返可以继续往上。'}
 ];
-function chamberStop(view){return {...viewStop(view),panorama:view.panorama}}
+function chamberStop(view){return {...viewStop(view),panorama:view.panorama,...(view.detail?{detail:view.detail}:{})}}
 function verifyChamber(stops){
   const panoramas=JSON.parse(fs.readFileSync(path.join(folder,'room-views.json')))['黑室'];
   for(const v of chamberViews){
@@ -134,6 +141,24 @@ function verifyChamber(stops){
       if(rays(tiles,new THREE.Vector3(x,y,-1.15),new THREE.Vector3(0,0,-1),5).length)throw Error('Blocked H4 test chamber opening');
     }
   }
+  // Follow the entrance and the first two flights using successive floor
+  // samples. A ray from roof level would land on overlapping upper stairs.
+  const route=[[73.46,48.3],[73.46,33.04],[55.05,33.04],
+    [55.05,12],[55.05,33.04],[55.05,42.5],[52.35,42.5],[52.35,31.2]];
+  let height=stops['黑室'].find(s=>s.label==='正门玻璃入口').y;
+  for(let j=1;j<route.length;j++){
+    const [sx,sz]=route[j-1],[ex,ez]=route[j],steps=Math.ceil(Math.hypot(ex-sx,ez-sz)/.20);
+    for(let k=1;k<=steps;k++){
+      const x=sx+(ex-sx)*k/steps,z=sz+(ez-sz)*k/steps;
+      const floor=rays(tiles,new THREE.Vector3(x,height+.42,z),down,.9)[0];
+      if(!floor||Math.abs(floor.point.y-height)>.25||Math.abs(floor.face.normal.y)<.55)throw Error('Discontinuous H4 entrance route');
+      height=floor.point.y;
+      if(rays(tiles,new THREE.Vector3(x,height+.05,z),up,1.91).length)throw Error('Low ceiling on H4 stairs');
+    }
+    if(j===3&&Math.abs(height+29.09)>.035)throw Error('H4 pressure hatch approach changed');
+    if(j===5&&Math.abs(height+26.529)>.035)throw Error('H4 first landing changed');
+  }
+  if(Math.abs(height+23.972)>.035)throw Error('H4 return landing changed');
 }
 const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
 const ladderFile=path.join(folder,'ladders.json');
@@ -169,8 +194,8 @@ if(process.argv.includes('--check-ladders')){
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
   verifyChamber(stops);
-  console.log('Verified H4 panorama links, walking starts, sill rise and clearance into the test bay.');
-  for(const view of freightViews)require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),freightStop(view));
+  console.log('Verified H4 entrance, two stair flights, glass door approach and test-bay sill.');
+  for(const view of propViews)require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),propStop(view));
   for(const site of extraction.filter(site=>site.landing)){
     const actual=stops[site.region].find(stop=>stop.label===site.landing.label);
     require('node:assert/strict').deepEqual(actual,extractionStop(site));
@@ -182,7 +207,7 @@ fs.writeFileSync(ladderFile,JSON.stringify(ladders));
 const out={};for(const r of regions){
   out[r.name]=buildStops(r);
   if(views[r.name])out[r.name].push(viewStop(views[r.name]));
-  for(const view of freightViews.filter(v=>v.region===r.name))out[r.name].push(freightStop(view));
+  for(const view of propViews.filter(v=>v.region===r.name))out[r.name].push(propStop(view));
   if(r.name==='浮力室'){
     out[r.name].unshift(
       viewStop({label:'池沿吊架',x:-43,z:-52,probeY:-27,yaw:2.18265,pitch:-.1274}),

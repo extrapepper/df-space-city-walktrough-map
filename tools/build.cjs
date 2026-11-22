@@ -52,8 +52,10 @@ assert(training.eye.every(Number.isFinite)&&training.focal>0&&training.depth[1]>
 const trainingFaces=training.surfaces.map(()=>0);
 const freightRole=firstRoom+training.surfaces.length,freightFaces=new Array(11).fill(0);
 const chamberFaces=require('./chamber.cjs').groups.map(()=>0);
+const foyerFaces=require('./foyer.cjs').groups.map(()=>0),firstFoyer=freightRole+1+chamberFaces.length;
 for(const cell of Object.values(appearances)){
   for(const [,count,role] of cell.near||[]){
+    if(role>=firstFoyer){foyerFaces[role-firstFoyer]+=count;continue}
     if(role>freightRole){chamberFaces[role-freightRole-1]+=count;continue}
     if(role===freightRole)continue;
     if(role>=firstRoom)trainingFaces[role-firstRoom]+=count;
@@ -62,6 +64,7 @@ for(const cell of Object.values(appearances)){
 }
 assert.deepEqual(trainingFaces,[7001+8370+1456,2861+88,4*64+2*92,2*856+1332,5558,9563,5868]);
 assert.deepEqual(chamberFaces,[1048+967,9563,630+228,2*(132+127+94+218+135),386,3245,1678,1392]);
+assert.deepEqual(foyerFaces,[2363+171,1085,6461,70*4+206,4053,1392+50+568,3*123+469,1085,6461,6461]);
 cabinetFaces.forEach((n,i)=>assert.equal(n,227,'Vending machine '+cabinets[i].instance));
 const knownCells = new Set(cells.map(cell => cell.file));
 for (const file of Object.keys(appearances)) assert(knownCells.has(file), file);
@@ -106,7 +109,7 @@ function meshEnd(bytes, offset, runs = [],paint,near=false) {
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=freightRole+chamberFaces.length, 'Invalid triangle material range');
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<firstFoyer+foyerFaces.length, 'Invalid triangle material range');
     if(role===freightRole){
       assert(styles);
       for(let f=face;f<last;f++){
@@ -130,6 +133,19 @@ for (const cell of cells) {
 assert.deepEqual(freightFaces,[0,618*138,357*134,260*120,325*136,217*316,2*120,2*120,7*138,6*134,5*324]);
 assert.equal(read('data/freight-finish.webp').subarray(8,12).toString(),'WEBP');
 for(const name of ['chamber','chamber-materials'])assert.equal(read('data/'+name+'.webp').subarray(8,12).toString(),'WEBP');
+assert.equal(read('data/foyer-finish.webp').subarray(8,12).toString(),'WEBP');
+const foyer=json('foyer.json');
+assert.equal(foyer.panes.length,14);
+for(const [left,right,base,head,z] of foyer.panes){
+  assert(left>=65.65&&right<=81.26&&right>left&&head>base&&z>45.40&&z<45.58);
+  assert(head<=-25.7||base>=-25.5||right<=69.68||left>=77.28);
+}
+const door=foyer.panes.filter(p=>p[4]<45.5).sort((a,b)=>a[0]-b[0]);
+assert.equal(door.length,2);
+assert(Math.abs(door[1][0]-door[0][1]-2.94)<.01);
+assert(foyer.suit.eye.length===3&&foyer.suit.axes.length===3&&foyer.suit.axes.every(row=>Math.abs(Math.hypot(...row)-1)<.0001));
+assert.deepEqual(foyer.frames.map(f=>[f.instance,f.reference]),[[10536,8795],[10603,8689],[15819,8689]]);
+assert(foyer.frames.every(f=>f.matrix.length===16&&f.matrix.every(Number.isFinite)));
 const chamber=json('chamber-study.json');
 assert(chamber.eye.length===3&&chamber.eye.every(Number.isFinite)&&chamber.rotation.length===3&&chamber.rotation.every(row=>row.length===3&&Math.abs(Math.hypot(...row)-1)<.001));
 assert(chamber.width>0&&chamber.height>0&&chamber.focal>0);

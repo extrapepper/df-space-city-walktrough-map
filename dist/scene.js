@@ -168,6 +168,7 @@ async function initialize3D(){
   loadLabFinish().catch(error=>console.warn('浮力室材质加载失败',error));
   loadVendingFinish().catch(error=>console.warn('售货机材质加载失败',error));
   loadChamber().catch(error=>console.warn('黑室材质加载失败',error));
+  installFoyer().catch(error=>console.warn('黑室门厅加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     cell.surfaces=finishes[cell.file];
@@ -291,6 +292,10 @@ function hit(origin,direction,length){
   }
   if(officeBounds&&cast.ray.intersectsBox(officeBounds)&&officeBounds.distanceToPoint(origin)<=length){
     rays.length=0;cast.intersectObjects(officeSolids,false,rays);
+    if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
+  }
+  if(foyerBounds&&foyerBounds.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(foyerBounds)){
+    rays.length=0;cast.intersectObjects(foyerBarriers,false,rays);
     if(rays.length&&(!best||rays[0].distance<best.distance))best=rays[0];
   }
   if(pool&&pool.bounds.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(pool.bounds)){
