@@ -55,6 +55,7 @@ function readGeometry() {
 }
 function placeGeometry() {
   const mat=new THREE.Matrix4(), q=new THREE.Quaternion(), tr=new THREE.Vector3(), sc=new THREE.Vector3();
+  const swapUp=new THREE.Matrix4().set(1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,0,1);
   for(let inst=0;inst<count;inst++,p+=48) {
     const f=k=>data.readFloatLE(p+k*4);
     const id=data.readUInt32LE(p+40), isTerrain=data.readUInt32LE(p+44)===1;
@@ -73,6 +74,11 @@ function placeGeometry() {
     const key=[Math.floor(cx/70),Math.floor(cz/70),isTerrain?1:0].join('_');
     const palette=isTerrain?0: width>50&&height<3?1:height>width*.8&&height>12?3:width>15?2+(id%6===0):4+(id%4);
     const item={v,idx:h.idx,small:width<2.7&&height<2.7,palette,id,instance:inst,min,max,cell:key};
+    if(!isTerrain&&id===484){
+      const pose=swapUp.clone().multiply(mat);
+      for(const k of [12,13,14])pose.elements[k]*=.01;
+      item.cabinetFrame=pose.invert().toArray().map(n=>+n.toFixed(7));
+    }
     if (!cells.has(key)) cells.set(key,[]);
     cells.get(key).push(item);
     (isTerrain?terrain:parts).push(item);
@@ -137,6 +143,23 @@ function bakeHeight() {
 }
 async function main(){
   await simplify.ready; readGeometry(); placeGeometry(); identifySurfaces(parts); bakeHeight();
+  const cabinets=parts.filter(p=>p.cabinetFrame).map(p=>({instance:p.instance,localFromWorld:p.cabinetFrame}));
+  const poses=cabinets.map(c=>{
+    const local=new THREE.Matrix4().fromArray(c.localFromWorld),world=local.clone().invert();
+    return {local,origin:new THREE.Vector3().setFromMatrixPosition(world),front:new THREE.Vector3(0,1,0).transformDirection(world)};
+  });
+  // Both filmed pairs have coffee on the left and juice on the right. The single
+  // machine beside the Black Chamber shelving can be identified independently.
+  cabinets.forEach((c,i)=>{
+    const pose=poses[i];
+    const hasLeft=poses.some(other=>{
+      if(other===pose||other.front.dot(pose.front)<.98)return false;
+      const p=other.origin.clone().applyMatrix4(pose.local);
+      return p.x< -1.25&&p.x> -2.2&&Math.abs(p.y)<.35&&Math.abs(p.z)<.24;
+    });
+    c.juice=c.instance===9095||hasLeft;
+  });
+  fs.writeFileSync(path.join(out,'vending.json'),JSON.stringify(cabinets));
   const basin=measureBasin(parts.find(p=>p.instance===4566&&p.id===599));
   fs.writeFileSync(path.join(out,'basin.gz'),zlib.gzipSync(JSON.stringify(basin)));
   const manifest=[];

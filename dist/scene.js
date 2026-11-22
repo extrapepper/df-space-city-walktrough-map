@@ -137,7 +137,7 @@ async function initialize3D(){
   gl.setPixelRatio(Math.min(devicePixelRatio,1.6));viewport.append(gl.domElement);
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(39,1,.12,5000);
   target=new THREE.Vector3(0,-25,24);
-  const [field,manifest,overview,water,appearance,cabins,basin,routes]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz'),jsonFile('lab-equipment.json'),inflated('basin.gz'),jsonFile('ladders.json')]);
+  const [field,manifest,overview,water,appearance,cabins,basin,routes,cabinets]=await Promise.all([inflated('height.gz'),jsonFile('cells.json'),inflated('overview.gz'),inflated('water.gz'),inflated('appearance.gz'),jsonFile('lab-equipment.json'),inflated('basin.gz'),jsonFile('ladders.json'),jsonFile('vending.json')]);
   ladders=routes;
   const finishes=JSON.parse(new TextDecoder().decode(appearance));
   const photo=new THREE.Texture(atlas);
@@ -155,10 +155,11 @@ async function initialize3D(){
     surveyFocal:{value:[new THREE.Vector2()]},surveyBounds:{value:[new THREE.Vector4()]},
     surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
   });
-  architecturalMaterials=makeArchitecturalMaterials(material,cabins);
+  architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets);
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
   loadLabFinish().catch(error=>console.warn('浮力室材质加载失败',error));
+  loadVendingFinish().catch(error=>console.warn('售货机材质加载失败',error));
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     cell.surfaces=finishes[cell.file];

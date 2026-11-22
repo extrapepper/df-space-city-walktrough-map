@@ -17,6 +17,13 @@ for (const [, url] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
 
 const cells = json('cells.json');
 const cabins = json('lab-equipment.json');
+const cabinets = json('vending.json');
+assert.equal(cabinets.length,45);
+assert.equal(new Set(cabinets.map(c=>c.instance)).size,cabinets.length);
+for(const c of cabinets){
+  assert(c.localFromWorld.length===16 && c.localFromWorld.every(Number.isFinite) && typeof c.juice==='boolean');
+}
+for(const [id,juice] of [[5808,false],[5810,false],[9095,true]])assert.equal(cabinets.find(c=>c.instance===id)?.juice,juice);
 assert.equal(new Set(cabins.map(c=>c.instance)).size,cabins.length);
 for(const c of cabins){
   assert(c.center.length===3 && c.basis.length===3 && c.basis.every(row=>row.length===3));
@@ -31,8 +38,30 @@ for(const view of [room,room.dry]){
 const appearances = JSON.parse(gunzipSync(read('data/appearance.gz')));
 const nearRoles=new Set(Object.values(appearances).flatMap(cell=>(cell.near||[]).map(run=>run[2])));
 cabins.forEach((c,i)=>assert(nearRoles.has(4+i),'Missing measured cabin '+c.instance));
+const cabinetFaces=new Array(cabinets.length).fill(0),firstCabinet=5+cabins.length;
+for(const cell of Object.values(appearances)){
+  for(const [,count,role] of cell.near||[])if(role>=firstCabinet)cabinetFaces[role-firstCabinet]+=count;
+}
+cabinetFaces.forEach((n,i)=>assert.equal(n,227,'Vending machine '+cabinets[i].instance));
 const knownCells = new Set(cells.map(cell => cell.file));
 for (const file of Object.keys(appearances)) assert(knownCells.has(file), file);
+function checkCabinetFrame(bytes,offset,vertices,first,count,role){
+  const cabinet=cabinets[role-firstCabinet],m=cabinet.localFromWorld;
+  const positions=offset+32,indices=positions+vertices*7,indexSize=vertices>65535?4:2;
+  const lo=[0,1,2].map(k=>bytes.readFloatLE(offset+8+4*k));
+  const step=lo.map((v,k)=>(bytes.readFloatLE(offset+20+4*k)-v)/65535);
+  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+  for(let i=first*3;i<(first+count)*3;i++){
+    const v=bytes.readUIntLE(indices+i*indexSize,indexSize);
+    const [x,y,z]=lo.map((origin,k)=>origin+step[k]*bytes.readUInt16LE(positions+v*6+2*k));
+    for(let k=0;k<3;k++){
+      const local=x*m[k]+y*m[k+4]+z*m[k+8]+m[k+12];
+      min[k]=Math.min(min[k],local);max[k]=Math.max(max[k],local);
+    }
+  }
+  const measured=[-.806,-.436,0,.791,.622,2.4];
+  assert([...min,...max].every((v,k)=>Math.abs(v-measured[k])<.012),'Misaligned cabinet '+cabinet.instance);
+}
 function meshEnd(bytes, offset, runs = []) {
   const vertices = bytes.readUInt32LE(offset);
   const indices = bytes.readUInt32LE(offset + 4);
@@ -41,7 +70,8 @@ function meshEnd(bytes, offset, runs = []) {
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=4+cabins.length, 'Invalid triangle material range');
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<firstCabinet+cabinets.length, 'Invalid triangle material range');
+    if(role>=firstCabinet)checkCabinetFrame(bytes,offset,vertices,face,count,role);
   }
   return offset + 32 + vertices * 7 + indices * (vertices > 65535 ? 4 : 2);
 }
@@ -63,7 +93,7 @@ for(const [i,[lo,hi,a,b]] of basin.layers.entries()){
 }
 for(const ring of rings)assert(ring.length===256&&ring.every(cm=>cm>400&&cm<3200));
 assert(nearRoles.has(4+cabins.length));
-for(const file of ['flood-console.webp','flood-housing.webp'])assert(read('data/'+file).length>0,file);
+for(const file of ['flood-console.webp','flood-housing.webp','vending-finish.webp'])assert(read('data/'+file).length>0,file);
 const landings = json('landings.json');
 require('node:child_process').execFileSync(process.execPath,[path.join(__dirname,'landings.cjs'),'--check-ladders'],{stdio:'inherit'});
 for (const point of json('regions.json')) assert(landings[point.name]?.length, point.name);

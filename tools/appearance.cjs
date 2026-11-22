@@ -27,6 +27,7 @@ function matchingBounds(a,b) {
 }
 function identifySurfaces(parts) {
   const records = new Map(parts.map(p => [p.instance,p]));
+  let nextCabinet=5+cabins.length;
   for (const part of parts) {
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;
@@ -34,6 +35,7 @@ function identifySurfaces(parts) {
     const cabin=cabinFinishes.get(part.instance);
     if(cabin && cabin.hull===part.id)part.finish=cabin.role;
     if(part.id>=1378&&part.id<=1383)part.finish=4+cabins.length;
+    if(part.cabinetFrame)part.finish=nextCabinet++;
     const candidates = twins.get(part.id);
     if (!candidates) continue;
     const reach = part.id === 6 ? 5 : 2;

@@ -130,6 +130,8 @@ const out={};for(const r of regions){
     out[r.name].push({label:name+' · 上口',x:x-nx*.77,z:z-nz*.77,y:route.top,
       yaw:yaw+Math.PI,pitch:-.48,...(route.headroom?{crouch:true}:{})});
   }
+  if(r.name==='码头区')out[r.name].push(viewStop({label:'南侧平台售货机',x:-48.655,z:140.532,probeY:-31.86,yaw:-.6285,pitch:-.1151}));
+  if(r.name==='黑室')out[r.name].push(viewStop({label:'器材架旁售货机',x:54.770,z:22.709,probeY:-27.65,yaw:1.986,pitch:-.12}));
   console.log(r.name,out[r.name].map(l=>l.y));
 }
 fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));
