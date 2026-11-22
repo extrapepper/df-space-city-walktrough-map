@@ -40,6 +40,9 @@ function identifySurfaces(parts) {
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;
     if (part.id === 1022) part.finish = 3;
+    // Switches keep their source collision here. Their sixteen visible parts share
+    // one independently textured model so its physical rotary handle can move.
+    if(part.id>=1406&&part.id<=1419)part.finish=2;
     const cabin=cabinFinishes.get(part.instance);
     if(cabin && cabin.hull===part.id)part.finish=cabin.role;
     if(part.id>=1378&&part.id<=1383)part.finish=4+cabins.length;

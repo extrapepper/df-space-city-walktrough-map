@@ -55,6 +55,13 @@ const photos={'宿舍区':'dorm','中控区':'control','中控桥':'bridge','工
 $('reference-photo').onclick=()=>{
   const key=photos[chosen?.name];
   if(!key)return;
+  const label=chosen.landings[Number($('landing').value)]?.label;
+  const site=extractionSites.find(s=>s.landing?.label===label&&['centrifuge-switch','blue-switch','testbay'].includes(s.id));
+  if(site){
+    const file=site.panel?site.id:'testbay-exit';
+    setDialog(site.name+' · 2024 游戏画面','<img class="reference" src="data/'+file+'.webp" alt="'+site.name+'的官方现场画面"><p>'+site.detail+' <a href="https://www.taptap.cn/moment/564129131101424794" target="_blank" rel="noreferrer">官方地图攻略</a></p>');
+    return;
+  }
   if(key==='buoyancy'&&chosen.landings[Number($('landing').value)]?.label==='深潜池下层'){
     setDialog('浮力室 · 深潜池下层','<img class="reference" src="data/buoyancy-lower.webp" alt="从池沿俯看下层舱体和圆形深井"><p>《三角洲行动》官方 2024 年航天基地画面。</p>');
     const go=document.createElement('button');go.className='visit-photo';go.textContent='从深潜池下层开始步行';

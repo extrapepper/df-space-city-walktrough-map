@@ -1,0 +1,34 @@
+[
+  {
+    "id":"helicopter","name":"直升机撤离点","region":"中心花园","mapX":672075.9375,"mapY":-440850.6875,
+    "detail":"中心花园南侧的露天平台。","landing":{"label":"直升机撤离平台","probeY":-32,"yaw":0.52,"pitch":0.02}
+  },
+  {
+    "id":"testbay","name":"试车场撤离点","region":"水平试车场","mapX":687504.6875,"mapY":-427413.84375,
+    "detail":"水平试车场临水侧的丢包撤离区。","landing":{"label":"丢包撤离平台","probeY":-30,"yaw":-2.36,"pitch":-0.05}
+  },
+  {
+    "id":"rocket","name":"火箭撤离点","region":"发射区","mapX":660050.0625,"mapY":-416314.53125,
+    "detail":"发射区的飞升者行动撤离标记。"
+  },
+  {
+    "id":"centrifuge-switch","name":"离心机室电闸","region":"离心机室","panel":[-71.425,-26.285,38.072],"normal":[0,-1],"instance":13400,
+    "detail":"H1 一楼抬高的控制平台。电闸装在两块监控屏旁的机柜上。","landing":{"label":"一楼机柜电闸","probeY":-26.6}
+  },
+  {
+    "id":"blue-switch","name":"蓝室旧闸","region":"蓝室","panel":[74.075,-33.37,-52.32],"normal":[-1,0],"scenario":"legacy",
+    "detail":"2024 版 H3 下沉平台东南角。S11 已调整蓝室闸位。","landing":{"label":"下沉平台电闸 · 2024","probeY":-33.5}
+  },
+  {
+    "id":"blue-s11","name":"蓝室电闸","region":"蓝室","panel":[64.203,-28.855,-45.07],"normal":[0,-1],"instance":13384,"scenario":"s11",
+    "detail":"H3 试验大厅南侧的一楼墙面，位于下沉平台上方。","landing":{"label":"大厅南墙电闸 · S11","probeY":-29.0}
+  },
+  {
+    "id":"black-s11","name":"黑室候选电闸","region":"黑室","panel":[44.305,-27.058,-15.92],"normal":[0,1],"instance":13416,"scenario":"black",
+    "detail":"S11 第三处电闸的候选位置之一。开局 15 分钟后，黑室和浮力室随机启用一处。","landing":{"label":"黑室候选电闸 · S11","probeY":-27.65}
+  },
+  {
+    "id":"buoyancy-s11","name":"浮力室候选电闸","region":"浮力室","panel":[-27.306,-27.584,-55.804],"normal":[-1,0],"instance":13432,"scenario":"buoyancy",
+    "detail":"S11 第三处电闸的候选位置之一。开局 15 分钟后，黑室和浮力室随机启用一处。","landing":{"label":"浮力室候选电闸 · S11","probeY":-27.8}
+  }
+]

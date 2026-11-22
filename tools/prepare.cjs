@@ -143,6 +143,29 @@ function bakeHeight() {
 }
 async function main(){
   await simplify.ready; readGeometry(); placeGeometry(); identifySurfaces(parts); bakeHeight();
+  const sites=require('../dist/data/extraction.json').filter(s=>s.instance);
+  const source=sites.find(s=>s.id==='centrifuge-switch');
+  const switchParts=parts.filter(p=>p.instance>=source.instance&&p.instance<source.instance+16);
+  const signature=[1406,1406,1407,1408,1409,1410,1411,1412,1413,1414,1415,1416,1417,1417,1418,1419];
+  const {deepEqual}=require('node:assert/strict');
+  for(const s of sites)deepEqual(parts.filter(p=>p.instance>=s.instance&&p.instance<s.instance+16).map(p=>p.id),signature);
+  const housing=switchParts.map(part=>({
+    hull:part.id,indices:Array.from(part.idx),
+    // H1 faces north. Its local +Z faces the user and local +X points west.
+    vertices:Array.from(part.v,(value,i)=>+((value-source.panel[i%3])*(i%3===1?1:-1)).toFixed(5))
+  }));
+  for(const site of sites){
+    const originals=parts.filter(p=>p.instance>=site.instance&&p.instance<site.instance+16);
+    const [nx,nz]=site.normal;
+    for(const [j,part] of housing.entries()){
+      for(let i=0;i<part.vertices.length;i+=3){
+        const x=part.vertices[i],y=part.vertices[i+1],z=part.vertices[i+2],v=originals[j].v;
+        const error=Math.hypot(site.panel[0]+nz*x+nx*z-v[i],site.panel[1]+y-v[i+1],site.panel[2]-nx*x+nz*z-v[i+2]);
+        if(error>.012)throw Error('Mismatched switch pose at '+site.id);
+      }
+    }
+  }
+  fs.writeFileSync(path.join(out,'switch-housing.json'),JSON.stringify(housing));
   const cabinets=parts.filter(p=>p.cabinetFrame).map(p=>({instance:p.instance,localFromWorld:p.cabinetFrame}));
   const poses=cabinets.map(c=>{
     const local=new THREE.Matrix4().fromArray(c.localFromWorld),world=local.clone().invert();

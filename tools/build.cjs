@@ -109,7 +109,17 @@ for(const [i,[lo,hi,a,b]] of basin.layers.entries()){
 for(const ring of rings)assert(ring.length===256&&ring.every(cm=>cm>400&&cm<3200));
 assert(nearRoles.has(4+cabins.length));
 for(const file of ['flood-console.webp','flood-housing.webp','vending-finish.webp'])assert(read('data/'+file).length>0,file);
-for(const file of ['blue-room','centrifuge','centrifuge-study','training-materials'])assert(read('data/'+file+'.webp').subarray(8,12).toString()==='WEBP',file);
+for(const file of ['blue-room','centrifuge','centrifuge-study','training-materials','switch-finish','centrifuge-switch','blue-switch','testbay-exit'])assert(read('data/'+file+'.webp').subarray(8,12).toString()==='WEBP',file);
+const sites=json('extraction.json');
+assert.equal(sites.length,8);assert.equal(new Set(sites.map(site=>site.id)).size,sites.length);
+const switchHousing=json('switch-housing.json');
+assert.equal(sites.filter(site=>site.instance).length,4);
+assert.deepEqual(switchHousing.map(p=>p.hull),[1406,1406,1407,1408,1409,1410,1411,1412,1413,1414,1415,1416,1417,1417,1418,1419]);
+for(const part of switchHousing)assert(part.vertices.every(Number.isFinite)&&part.indices.every(i=>Number.isInteger(i)&&i>=0&&i<part.vertices.length/3));
+for(const site of sites){
+  if(site.panel)assert(site.panel.length===3&&site.panel.every(Number.isFinite)&&Math.hypot(...site.normal)===1);
+  else assert(Number.isFinite(site.mapX)&&Number.isFinite(site.mapY));
+}
 const landings = json('landings.json');
 require('node:child_process').execFileSync(process.execPath,[path.join(__dirname,'landings.cjs'),'--check-ladders'],{stdio:'inherit'});
 for (const point of json('regions.json')) assert(landings[point.name]?.length, point.name);

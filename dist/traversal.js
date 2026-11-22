@@ -36,6 +36,7 @@ function lowestFeet(ladder){
 function useInteraction(){
   if(climbing){climbing=null;groundVelocity=0;jumpPending=false;syncMode();dirty=true;return}
   if(pool?.state==='dry'&&targetTerminal()){startFlood();return}
+  const lever=targetedLever();if(lever){toggleLever(lever);return}
   const ladder=nearbyLadder();if(!ladder)return;
   const eye=camera.position,feet=clamp(eye.y-eyeHeight(),lowestFeet(ladder),ladder.top);
   climbing=ladder;groundVelocity=0;jumpPending=false;
@@ -60,11 +61,11 @@ function climbStep(direction,dt){
 }
 function updateInteraction(){
   const button=$('flood-action'),terminal=targetTerminal()&&pool.state!=='full';
-  const ladder=climbing||(!terminal&&nearbyLadder());
-  button.hidden=isFlat||routeMapOpen||(!terminal&&!ladder);
+  const lever=!terminal&&targetedLever(),ladder=climbing||(!terminal&&!lever&&nearbyLadder());
+  button.hidden=isFlat||routeMapOpen||(!terminal&&!ladder&&!lever);
   if(!button.hidden){
-    button.disabled=!ladder&&pool.state==='filling';
-    const label=climbing?'松开梯子':ladder?'攀爬'+ladder.name:button.disabled?'注水中 '+Math.floor(pool.fraction*100)+'%':'启动注水';
+    button.disabled=Boolean(terminal&&pool.state==='filling');
+    const label=climbing?'松开梯子':ladder?'攀爬'+ladder.name:lever?(pulledLevers.has(lever)?'复位电闸':'拉下电闸'):button.disabled?'注水中 '+Math.floor(pool.fraction*100)+'%':'启动注水';
     if(button.lastElementChild.textContent!==label)button.lastElementChild.textContent=label;
   }
   $('reset-flood').hidden=!(chosen?.name==='浮力室'&&pool?.state!=='dry');

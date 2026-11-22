@@ -3,7 +3,32 @@ const mapPanel=$('route-map'), mapField=$('map-field'), mapCanvas=$('map-chart')
 const chart=mapCanvas.getContext('2d');
 let routeMapOpen=false, mapScale=1, mapX=0, mapZ=25, mapDrag=null;
 const mapPoint=(x,z)=>[mapField.clientWidth/2+(x-mapX)*mapScale,mapField.clientHeight/2+(z-mapZ)*mapScale];
-let selectedLadder=null;
+let selectedLadder=null,selectedSite=null;
+function placeExtractionMarkers(w,h){
+  const layer=$('map-extraction');
+  if(!layer.childElementCount)for(const site of extractionSites){
+    const button=document.createElement('button');
+    button.className='map-site '+(site.panel?'map-switch':'map-exit');
+    button.title=site.name;button.setAttribute('aria-label',site.name);
+    const symbol=site.panel?'<path d="M5 16h10M8 12l5-7"/><circle cx="14" cy="4" r="2"/>':'<path d="M9 3H4v14h5m1-7h8m-4-4 4 4-4 4"/>';
+    button.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true">'+symbol+'</svg>';
+    button.onclick=()=>{selectedLadder=null;selectedSite=selectedSite===site?null:site;paintRouteMap()};
+    layer.append(button);
+  }
+  for(const [i,site] of extractionSites.entries()){
+    const [x,y]=mapPoint(site.x,site.z),button=layer.children[i];
+    button.hidden=!enabledSite(site)||x<0||y<0||x>w||y>h;
+    button.style.left=x+'px';button.style.top=y+'px';
+    button.setAttribute('aria-pressed',String(selectedSite===site));
+    button.classList.toggle('pulled',pulledLevers.has(site.id));
+    button.classList.toggle('unlocked',site.id==='helicopter'&&pulledLevers.size>=2);
+  }
+  const info=$('map-site-info');info.hidden=!selectedSite;
+  if(selectedSite){
+    info.children[0].textContent=selectedSite.name;
+    info.children[1].textContent=selectedSite.detail;
+  }
+}
 function placeLadderMarkers(w,h){
   const layer=$('map-ladders'),info=$('map-ladder-info');
   layer.hidden=mapScale<2.4;
@@ -12,7 +37,7 @@ function placeLadderMarkers(w,h){
     const button=document.createElement('button');button.className='map-ladder';
     button.title=route.region+' · '+route.name;button.setAttribute('aria-label',button.title);
     button.innerHTML='<svg viewBox="0 0 16 18" aria-hidden="true"><path d="M4 2v14m8-14v14M4 5h8M4 9h8M4 13h8"/></svg>';
-    button.onclick=()=>{selectedLadder=selectedLadder===route?null:route;placeLadderMarkers(mapField.clientWidth,mapField.clientHeight)};
+    button.onclick=()=>{selectedSite=null;selectedLadder=selectedLadder===route?null:route;paintRouteMap()};
     layer.append(button);
   }
   for(const [i,route] of ladders.entries()){
@@ -72,8 +97,11 @@ function paintRouteMap(){
   }
   chart.stroke();
   placeLadderMarkers(w,h);
+  placeExtractionMarkers(w,h);
   chart.font='600 13px "Microsoft YaHei",sans-serif';chart.textAlign='center';chart.lineJoin='round';
-  const labels=[];
+  const labels=extractionSites.filter(enabledSite).map(site=>{
+    const [x,y]=mapPoint(site.x,site.z);return {x,y,w:28};
+  });
   for(const place of points){
     const [x,y]=mapPoint(place.x,place.z);
     const width=chart.measureText(place.name).width;
@@ -94,12 +122,18 @@ function updateMapPosition(){
   marker.style.transform='translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
   marker.firstElementChild.style.transform='rotate('+(-flyYaw)+'rad)';
   $('map-position').textContent='X '+x.toFixed(1)+'　Y '+z.toFixed(1)+'　H '+y.toFixed(1)+' m';
+  if(selectedSite){
+    const distance=Math.hypot(selectedSite.x-x,selectedSite.z-z);
+    const progress=selectedSite.panel||selectedSite.id==='helicopter'?'　拉闸 '+Math.min(2,pulledLevers.size)+'/2':'';
+    $('map-site-info').lastElementChild.textContent='水平距离 '+Math.round(distance)+' m'+progress;
+  }
 }
 $('locator').onclick=openRouteMap;$('map-close').onclick=()=>closeRouteMap(true);
+$('map-practice').onchange=e=>{setPractice(e.target.value);$('map-close').focus({preventScroll:true})};
 $('map-follow').onclick=()=>{mapX=camera.position.x;mapZ=camera.position.z;mapScale=Math.max(mapScale,2.8);paintRouteMap()};
 $('map-fit').onclick=fitRouteMap;
 $('map-plus').onclick=()=>scaleRouteMap(1.4);$('map-minus').onclick=()=>scaleRouteMap(1/1.4);
-mapField.onpointerdown=e=>{if(mapDrag||e.target.closest('.map-ladder'))return;mapField.setPointerCapture(e.pointerId);mapDrag={id:e.pointerId,x:e.clientX,y:e.clientY}};
+mapField.onpointerdown=e=>{if(mapDrag||e.target.closest('button'))return;mapField.setPointerCapture(e.pointerId);mapDrag={id:e.pointerId,x:e.clientX,y:e.clientY}};
 mapField.onpointermove=e=>{
   if(mapDrag?.id!==e.pointerId)return;
   mapX-=(e.clientX-mapDrag.x)/mapScale;mapZ-=(e.clientY-mapDrag.y)/mapScale;

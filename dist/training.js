@@ -102,6 +102,23 @@ function makeTrainingMaterial(kind){
           return enamel*(1.-joint*.32)*lit;
         }
         if(kind==platformKind){
+          if(y< -31.59&&site.x>54.23&&site.x<74.12&&site.z> -67.84&&site.z< -51.12){
+            bool wall=abs(n.y)<.45;
+            float horizontal=abs(n.x)>abs(n.z)?site.z+51.16:site.x-74.093;
+            vec2 metres=wall?vec2(horizontal,y+34.848):site.xz-vec2(74.093,-51.16);
+            vec2 grid=metres/2.;
+            vec2 uv=1.-abs(mod(grid,2.)-1.);
+            vec2 sampleOrigin=vec2(wall?(abs(n.x)>.7?4.:260.):132.,319.);
+            vec3 paint=inkSample(sampleOrigin,vec2(115.,98.),uv,vec3(.22,.30,.42));
+            float joint=wall?seam(grid.x,.004):max(seam(grid.x,.005),seam(grid.y,.005));
+            paint*=1.-.36*joint;
+            if(wall){
+              paint=mix(paint,vec3(.095,.15,.30),band(y,-33.4675,.1025)*.82);
+              float lip=max(band(y,-33.365,.018),band(y,-33.57,.018));
+              paint=mix(paint,vec3(.06,.095,.15),max(lip,band(y,-34.80,.045))*.89);
+            }
+            return paint*mix(.92,1.09,abs(n.y));
+          }
           vec3 platform=abs(n.y)>.6?vec3(.24,.31,.40):vec3(.28,.36,.46);
           if(y> -29.20)platform=abs(n.y)>.6?vec3(.26,.31,.35):vec3(.14,.18,.20);
           if(y< -31.3&&abs(n.y)<.5)platform=vec3(.49,.56,.66);

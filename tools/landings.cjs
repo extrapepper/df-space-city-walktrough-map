@@ -104,6 +104,22 @@ function viewStop({label,x,z,probeY,yaw,pitch}){
 }
 const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
 const ladderFile=path.join(folder,'ladders.json');
+const extraction=JSON.parse(fs.readFileSync(path.join(folder,'extraction.json'),'utf8'));
+function extractionStop(site){
+  const {label,probeY}=site.landing;
+  if(!site.panel)return viewStop({...site.landing,x:(site.mapX-668650)/100,z:(site.mapY+452830)/100});
+  const [px,py,pz]=site.panel,[nx,nz]=site.normal;
+  const reach=2.2,x=px+reach*nx,z=pz+reach*nz,yaw=Math.atan2(nx,nz);
+  const stop=viewStop({label,x,z,probeY,yaw,pitch:0});
+  const depth=site.instance ? .36 : .24;
+  stop.pitch=+Math.atan2(py-stop.y-1.70,reach-depth).toFixed(4);
+  const eye=new THREE.Vector3(x,stop.y+1.70,z),toward=new THREE.Vector3(px+nx*depth,py,pz+nz*depth).sub(eye);
+  const distance=toward.length();
+  if(rays(tiles,eye,toward.normalize(),distance-.08).length)throw Error('Obstructed switch at '+label);
+  const back=rays(tiles,new THREE.Vector3(px+nx*.55,py,pz+nz*.55),new THREE.Vector3(-nx,0,-nz),.66)[0];
+  if(!back||(!site.instance&&Math.abs(back.distance-.55)>.06))throw Error('Missing mounting surface at '+label);
+  return stop;
+}
 if(process.argv.includes('--check-ladders')){
   require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(ladderFile)),ladders);
   console.log('Verified '+ladders.length+' ladder shafts, end supports and clearances against the collision meshes.');
@@ -118,6 +134,12 @@ if(process.argv.includes('--check-ladders')){
     if(rays(tiles,new THREE.Vector3(-45.75,y,z),cross,3.5).length)throw Error('Blocked A door');
   }
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
+  const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
+  for(const site of extraction.filter(site=>site.landing)){
+    const actual=stops[site.region].find(stop=>stop.label===site.landing.label);
+    require('node:assert/strict').deepEqual(actual,extractionStop(site));
+  }
+  console.log('Verified extraction platforms, switch mounts and walking sightlines.');
   return;
 }
 fs.writeFileSync(ladderFile,JSON.stringify(ladders));
@@ -151,6 +173,7 @@ const out={};for(const r of regions){
     out[r.name].push(viewStop({label:'下沉平台上沿',x:74,z:-49,probeY:-28.9,yaw:.72,pitch:.46}));
     out[r.name].push(viewStop({label:'试验台上层回廊',x:78.8,z:-69.5,probeY:-18.7,yaw:2.19,pitch:-.21}));
   }
+  for(const site of extraction.filter(site=>site.region===r.name&&site.landing))out[r.name].push(extractionStop(site));
   console.log(r.name,out[r.name].map(l=>l.y));
 }
 fs.writeFileSync(path.join(folder,'landings.json'),JSON.stringify(out));

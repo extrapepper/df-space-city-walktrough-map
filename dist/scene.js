@@ -160,6 +160,7 @@ async function initialize3D(){
     surveyRect:{value:[new THREE.Vector4()]},enableSurvey:{value:0}
   });
   architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets,training);
+  installExtraction(...await Promise.all([jsonFile('extraction.json'),jsonFile('switch-housing.json')]));
   installTrainingRooms(training).catch(error=>console.warn('训练室材质加载失败',error));
   loadSurveyTextures().catch(error=>console.warn('部分实景纹理加载失败',error));
   loadFinishes().catch(error=>console.warn('近景材质加载失败',error));
@@ -328,6 +329,7 @@ async function changeView(mode,arrival=false){
         // Use a nearby outdoor approach instead of dropping onto a landmark roof.
         const place=chosen||points.find(p=>p.name==='中控桥');
         const stop=place?.landings[chosen?Number($('landing').value)||0:place.landings.length-1]||approach(pt);
+        selectPracticeForLanding(stop.label);
         awaitingLanding=true;
         const needed=tiles.filter(c=>distanceXZ(c.bbox,stop)<3);
         $('ready').textContent='载入漫游起点';
