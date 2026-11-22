@@ -17,6 +17,7 @@ const twins = new Map([
   [6,[1]], [13,[164,170]], [847,[846]], [49,[48]], [166,[165]],
   [53,[52]], [1054,[1053]], [1076,[1077]], [1022,[1021]]
 ]);
+const palletShells=new Map([[96,97],[1508,1509],[1510,1511],[1515,1516],[1645,1646]]);
 function matchingBounds(a,b) {
   // A paired surface must load and unload with its visible counterpart.
   if(a.cell!==b.cell)return false;
@@ -29,7 +30,8 @@ function identifySurfaces(parts) {
   const records = new Map(parts.map(p => [p.instance,p]));
   let nextCabinet=5+cabins.length;
   const firstRoom=nextCabinet+parts.filter(p=>p.cabinetFrame).length;
-  require('../dist/data/training-rooms.json').surfaces.forEach((group,i)=>{
+  const rooms=require('../dist/data/training-rooms.json').surfaces;
+  rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);
       if(part?.id!==hull)throw Error('Unmatched training room model '+instance);
@@ -37,6 +39,7 @@ function identifySurfaces(parts) {
     }
   });
   for (const part of parts) {
+    if(part.freight)part.finish=firstRoom+rooms.length;
     part.panes = windowFaces.get(part.id);
     if(part.id===818)part.backing=dormWindowBacking;
     if (part.id === 1022) part.finish = 3;
@@ -47,6 +50,14 @@ function identifySurfaces(parts) {
     if(cabin && cabin.hull===part.id)part.finish=cabin.role;
     if(part.id>=1378&&part.id<=1383)part.finish=4+cabins.length;
     if(part.cabinetFrame)part.finish=nextCabinet++;
+    if(part.id===98){
+      const base=records.get(part.instance-2),cover=records.get(part.instance-1);
+      if(base && cover && palletShells.get(base.id)===cover.id && base.cell===part.cell && cover.cell===part.cell &&
+         part.min.every((lo,k)=>Math.abs(lo-Math.min(base.min[k],cover.min[k]))<.13 &&
+           Math.abs(part.max[k]-Math.max(base.max[k],cover.max[k]))<.13)){
+        base.twin=part;cover.twin=part;
+      }
+    }
     const candidates = twins.get(part.id);
     if (!candidates) continue;
     const reach = part.id === 6 ? 5 : 2;

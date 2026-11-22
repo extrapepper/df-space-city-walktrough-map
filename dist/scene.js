@@ -117,7 +117,7 @@ async function inflated(file) {
 }
 async function jsonFile(file){const res=await fetch('data/'+file);if(!res.ok)throw Error(file);return res.json()}
 function topAt(x,z){const col=clamp(Math.round(x+512),0,1023),row=clamp(Math.round(z+512),0,1023);return Math.max(-96,(heights?.[row*1024+col]??-3800)*.01)}
-function readMesh(view,offset,surfaceRuns){
+function readMesh(view,offset,surfaceRuns,freight){
   let p=offset;
   const uint=()=>{const v=view.getUint32(p,true);p+=4;return v};
   const float=()=>{const v=view.getFloat32(p,true);p+=4;return v};
@@ -128,6 +128,7 @@ function readMesh(view,offset,surfaceRuns){
   const index=n>65535?new Uint32Array(t):new Uint16Array(t);
   for(let i=0;i<t;i++,p+=index.BYTES_PER_ELEMENT)index[i]=n>65535?view.getUint32(p,true):view.getUint16(p,true);
   const geo=new THREE.BufferGeometry();
+  if(freight)geo.setAttribute('freightCoord',readFreightCoords(freight,n));
   geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('regionColor',new THREE.BufferAttribute(Uint8Array.from(color),1));
   geo.setIndex(new THREE.BufferAttribute(surfaceRuns?applySurfaceRuns(geo,index,surfaceRuns):index,1));
   geo.boundingBox=new THREE.Box3(new THREE.Vector3(...lo),new THREE.Vector3(...hi));
@@ -169,7 +170,7 @@ async function initialize3D(){
   const view=new DataView(overview);let p=0;
   tiles=manifest.map(cell=>{
     cell.surfaces=finishes[cell.file];
-    if(cell.overview){const result=readMesh(view,p,cell.surfaces?.far);cell.low=result.mesh;p=result.offset;scene.add(cell.low)}
+    if(cell.overview){const result=readMesh(view,p,cell.surfaces?.far,cell.surfaces?.farFreight);cell.low=result.mesh;p=result.offset;scene.add(cell.low)}
     cell.bbox=new THREE.Box3(new THREE.Vector3(...cell.min),new THREE.Vector3(...cell.max));
     return cell;
   });
@@ -251,7 +252,7 @@ function fetchCell(cell){
 async function readCell(cell){
   activeLoads++;cell.loading=true;
   try{
-    const buf=await inflated(cell.file),{mesh}=readMesh(new DataView(buf),0,cell.surfaces?.near);
+    const buf=await inflated(cell.file),{mesh}=readMesh(new DataView(buf),0,cell.surfaces?.near,cell.surfaces?.nearFreight);
     cell.full=mesh;scene.add(mesh);resident.add(cell);
     if(cell.low)cell.low.visible=false;
     dirty=true;return true;

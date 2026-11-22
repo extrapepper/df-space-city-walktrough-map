@@ -4,6 +4,7 @@ const zlib = require('node:zlib');
 const crypto = require('node:crypto');
 const { identifySurfaces, surfaceRuns } = require('./appearance.cjs');
 const { measureBasin } = require('./basin.cjs');
+const { freightFinish,packFreight } = require('./freight.cjs');
 const THREE = require('../dist/vendor/three.min.js');
 const simplify = require(process.argv[3] || 'meshoptimizer/meshopt_simplifier.js');
 const data = fs.readFileSync(process.argv[2]);
@@ -74,6 +75,7 @@ function placeGeometry() {
     const key=[Math.floor(cx/70),Math.floor(cz/70),isTerrain?1:0].join('_');
     const palette=isTerrain?0: width>50&&height<3?1:height>width*.8&&height>12?3:width>15?2+(id%6===0):4+(id%4);
     const item={v,idx:h.idx,small:width<2.7&&height<2.7,palette,id,instance:inst,min,max,cell:key};
+    if(!isTerrain)item.freight=freightFinish(h,id,inst);
     if(!isTerrain&&id===484){
       const pose=swapUp.clone().multiply(mat);
       for(const k of [12,13,14])pose.elements[k]*=.01;
@@ -104,6 +106,8 @@ function pack(list, lod, finishes) {
   const remap=new Int32Array(n/3).fill(-1);
   let verts=0;
   for(const i of reduced) if(remap[i]===-1) remap[i]=verts++;
+  const freight=packFreight(list,remap,verts);
+  if(freight)finishes[lod?'farFreight':'nearFreight']=freight;
   const {min,max}=bounds(v), head=Buffer.alloc(32);
   head.writeUInt32LE(verts); head.writeUInt32LE(reduced.length,4);
   min.forEach((x,k)=>head.writeFloatLE(x,8+4*k));max.forEach((x,k)=>head.writeFloatLE(x,20+4*k));

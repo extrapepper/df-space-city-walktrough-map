@@ -102,6 +102,18 @@ function viewStop({label,x,z,probeY,yaw,pitch}){
   if(rays(tiles,origin,up,1.95).length)throw Error('Insufficient headroom at '+label);
   return {label,x,y:+floor.point.y.toFixed(3),z,yaw:+yaw.toFixed(4),pitch};
 }
+const freightViews=[
+  {region:'中控区',label:'楼前双层集装箱',x:7.74,z:-179.11,probeY:-32.5,yaw:-.3927,pitch:.14,reach:7.3},
+  {region:'中控桥',label:'桥面运输箱',x:4,z:-122.11,probeY:-24,yaw:1.1781,pitch:-.12,reach:3.0},
+  {region:'中心花园',label:'货箱间通道',x:36.73,z:118.14,probeY:-33,yaw:1.1781,pitch:-.14,reach:3.35}
+];
+function freightStop(view){
+  const stop=viewStop(view),eye=new THREE.Vector3(stop.x,stop.y+1.7,stop.z);
+  const direction=new THREE.Vector3(-Math.sin(stop.yaw)*Math.cos(stop.pitch),Math.sin(stop.pitch),-Math.cos(stop.yaw)*Math.cos(stop.pitch));
+  const hit=rays(tiles,eye,direction,view.reach+1.3)[0];
+  if(!hit||hit.distance<view.reach-.5)throw Error('Obstructed freight approach at '+view.label);
+  return stop;
+}
 const ladders=measureRoutes({THREE,tiles,rays,up,down,water:zlib.gunzipSync(fs.readFileSync(path.join(folder,'water.gz')))});
 const ladderFile=path.join(folder,'ladders.json');
 const extraction=JSON.parse(fs.readFileSync(path.join(folder,'extraction.json'),'utf8'));
@@ -135,6 +147,7 @@ if(process.argv.includes('--check-ladders')){
   }
   console.log('Verified the centrifuge camera sightlines and walking clearance through A door.');
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
+  for(const view of freightViews)require('node:assert/strict').deepEqual(stops[view.region].find(s=>s.label===view.label),freightStop(view));
   for(const site of extraction.filter(site=>site.landing)){
     const actual=stops[site.region].find(stop=>stop.label===site.landing.label);
     require('node:assert/strict').deepEqual(actual,extractionStop(site));
@@ -146,6 +159,7 @@ fs.writeFileSync(ladderFile,JSON.stringify(ladders));
 const out={};for(const r of regions){
   out[r.name]=buildStops(r);
   if(views[r.name])out[r.name].push(viewStop(views[r.name]));
+  for(const view of freightViews.filter(v=>v.region===r.name))out[r.name].push(freightStop(view));
   if(r.name==='浮力室'){
     out[r.name].unshift(
       viewStop({label:'池沿吊架',x:-43,z:-52,probeY:-27,yaw:2.18265,pitch:-.1274}),

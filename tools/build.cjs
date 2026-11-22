@@ -50,8 +50,10 @@ for(const [x,y,z,tx,tz,w,h] of training.windows){
 }
 assert(training.eye.every(Number.isFinite)&&training.focal>0&&training.depth[1]>training.depth[0]);
 const trainingFaces=training.surfaces.map(()=>0);
+const freightRole=firstRoom+training.surfaces.length,freightFaces=new Array(10).fill(0);
 for(const cell of Object.values(appearances)){
   for(const [,count,role] of cell.near||[]){
+    if(role===freightRole)continue;
     if(role>=firstRoom)trainingFaces[role-firstRoom]+=count;
     else if(role>=firstCabinet)cabinetFaces[role-firstCabinet]+=count;
   }
@@ -77,15 +79,39 @@ function checkCabinetFrame(bytes,offset,vertices,first,count,role){
   const measured=[-.806,-.436,0,.791,.622,2.4];
   assert([...min,...max].every((v,k)=>Math.abs(v-measured[k])<.012),'Misaligned cabinet '+cabinet.instance);
 }
-function meshEnd(bytes, offset, runs = []) {
+function freightStyles(paint,vertices){
+  if(!paint)return;
+  const packed=Buffer.from(paint.bytes,'base64'),style=new Uint8Array(vertices);
+  let last=0,offset=0;
+  for(const [start,count] of paint.spans){
+    assert(Number.isInteger(start)&&Number.isInteger(count)&&start>=last&&count>0&&start+count<=vertices);
+    last=start+count;
+    for(let i=start;i<last;i++,offset+=4){
+      style[i]=packed[offset+3];
+      assert(style[i]>=1&&style[i]<=9);
+    }
+  }
+  assert.equal(offset,packed.length);
+  return style;
+}
+function meshEnd(bytes, offset, runs = [],paint,near=false) {
   const vertices = bytes.readUInt32LE(offset);
   const indices = bytes.readUInt32LE(offset + 4);
   assert(vertices > 0 && indices > 0 && indices % 3 === 0);
+  const styles=freightStyles(paint,vertices),indexSize=vertices>65535?4:2,indexStart=offset+32+vertices*7;
   let last = 0;
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<firstRoom+training.surfaces.length, 'Invalid triangle material range');
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=freightRole, 'Invalid triangle material range');
+    if(role===freightRole){
+      assert(styles);
+      for(let f=face;f<last;f++){
+        const p=indexStart+3*f*indexSize,style=styles[bytes.readUIntLE(p,indexSize)];
+        assert(style&&style===styles[bytes.readUIntLE(p+indexSize,indexSize)]&&style===styles[bytes.readUIntLE(p+indexSize*2,indexSize)]);
+        if(near)freightFaces[style]++;
+      }
+    }
     if(role>=firstCabinet&&role<firstRoom)checkCabinetFrame(bytes,offset,vertices,face,count,role);
   }
   return offset + 32 + vertices * 7 + indices * (vertices > 65535 ? 4 : 2);
@@ -94,9 +120,12 @@ const overview = gunzipSync(read('data/overview.gz'));
 let overviewOffset = 0;
 for (const cell of cells) {
   const mesh = gunzipSync(read('data/' + cell.file));
-  assert.equal(meshEnd(mesh, 0, appearances[cell.file]?.near), mesh.length, cell.file);
-  if (cell.overview) overviewOffset = meshEnd(overview, overviewOffset, appearances[cell.file]?.far);
+  const finish=appearances[cell.file]||{};
+  assert.equal(meshEnd(mesh,0,finish.near,finish.nearFreight,true),mesh.length,cell.file);
+  if(cell.overview)overviewOffset=meshEnd(overview,overviewOffset,finish.far,finish.farFreight);
 }
+assert.deepEqual(freightFaces,[0,618*138,357*134,260*120,325*136,217*316,2*120,2*120,7*138,6*134]);
+assert.equal(read('data/freight-finish.webp').subarray(8,12).toString(),'WEBP');
 assert.equal(overviewOffset, overview.length);
 assert.equal(gunzipSync(read('data/height.gz')).length, 1024 * 1024 * 2);
 const water = gunzipSync(read('data/water.gz'));

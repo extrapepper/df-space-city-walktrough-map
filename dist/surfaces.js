@@ -71,7 +71,7 @@ function makeArchitecturalMaterials(base,cabins,cabinets,study){
   rung.uniforms={submerged:labUniforms.submerged,immersionTint:labUniforms.immersionTint,
     immersionLevel:labUniforms.immersionLevel,finishReady:base.uniforms.finishReady,finishColor:base.uniforms.finishColor};
   return [base,glass,collider,steel,...cabins.map(makeCabinMaterial),rung,...cabinets.map(makeVendingMaterial),
-    ...study.surfaces.map((_,i)=>makeTrainingMaterial(i))];
+    ...study.surfaces.map((_,i)=>makeTrainingMaterial(i)),makeFreightMaterial()];
 }
 async function registerSteelPhoto(p){
   const photo=await new THREE.TextureLoader().loadAsync('data/sculpture-finish.webp');
