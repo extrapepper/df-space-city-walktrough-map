@@ -42,7 +42,9 @@ function identifySurfaces(parts) {
   require('./servers.cjs').prepareServers(records,firstCommand+command.groups.length+2);
   const suite=require('./suite.cjs'),firstSuite=firstCommand+command.groups.length+3;
   suite.prepareSuite(records,firstSuite);
-  const dorm=require('./dorm.cjs').prepareDorm(parts,firstSuite+suite.groups.length+2);
+  const firstDorm=firstSuite+suite.groups.length+2;
+  const dorm=require('./dorm.cjs').prepareDorm(parts,firstDorm);
+  require('./launch.cjs').prepareLaunch(parts,firstDorm+dorm.windows.length+dorm.rooms.length+3);
   rooms.forEach((group,i)=>{
     for(const [instance,hull] of group){
       const part=records.get(instance);

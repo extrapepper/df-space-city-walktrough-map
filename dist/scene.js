@@ -168,6 +168,7 @@ async function initialize3D(){
   architecturalMaterials=makeArchitecturalMaterials(material,cabins,cabinets,training,dorm);
   movingDoorRole=architecturalMaterials.indexOf(dormantDoorSource);
   installDorm(dorm,dormCamera);
+  launchLoading=installLaunch().catch(error=>console.warn('发射区材质加载失败',error));
   jsonFile('dorm-plan.json').then(setApartmentPlan).catch(error=>console.warn('宿舍楼层图加载失败',error));
   loadBedroomPhoto().catch(error=>console.warn('宿舍卧室贴图加载失败',error));
   installExtraction(...await Promise.all([jsonFile('extraction.json'),jsonFile('switch-housing.json')]));
@@ -219,12 +220,14 @@ async function loadSurveyTextures(){
   u.surveyBounds.value=poses.map(p=>new THREE.Vector4(...p.bounds));
   u.surveyRect.value=poses.map(p=>new THREE.Vector4(...p.rect));
   for(const pose of poses)surveyViews.set(pose.name,pose);
+  const launchPose=surveyViews.get('launch');if(launchPose)setLaunchSurvey(launchPose);
   material.defines.SURVEY_COUNT=poses.length;
   u.enableSurvey.value=1;material.needsUpdate=true;dirty=true;
 }
 function visitSurvey(pose){
   changeView('fly');
   setOfficeGlobe(pose===surveyViews.get('ceo'));
+  setLaunchReturn(pose===returnStudy?.pose?'photo':false);
   camera.position.fromArray(pose.eye);
   const [right,downward,forward]=pose.rotation;
   const orientation=new THREE.Matrix4().makeBasis(
@@ -308,6 +311,11 @@ function hit(origin,direction,length){
     rays.length=0;object.raycast(cast,rays);
     for(const h of rays)if(!best||h.distance<best.distance)best=h;
   }
+  for(const solid of launchSolids){
+    if(!solid.mesh.visible||solid.bounds.distanceToPoint(origin)>length||!cast.ray.intersectsBox(solid.bounds))continue;
+    rays.length=0;solid.mesh.raycast(cast,rays);
+    for(const h of rays)if(!best||h.distance<best.distance)best=h;
+  }
   for(const solid of dormSolids)if(solid.bounds.distanceToPoint(origin)<=length&&cast.ray.intersectsBox(solid.bounds)){
     rays.length=0;solid.mesh.raycast(cast,rays);
     for(const h of rays)if(!best||h.distance<best.distance)best=h;
@@ -368,9 +376,11 @@ async function changeView(mode,arrival=false){
         const needed=tiles.filter(c=>distanceXZ(c.bbox,stop)<3);
         $('ready').textContent='载入漫游起点';
         const loaded=await Promise.all(needed.map(fetchCell));
+        if(stop.launchReturn)await launchLoading;
         if(order!==arrivalSerial)return;
         awaitingLanding=false;$('ready').textContent='场景就绪';
         if(loaded.some(v=>!v)){note('起点模型尚未载入，请重试');return}
+        setLaunchReturn(stop.launchReturn?'play':false);
         crouched=!!stop.crouch;
         if(stop.water){camera.position.set(stop.x,harbor.level+.28,stop.z);groundVelocity=0}
         else dropAt(stop.x,stop.z,stop.y==null?null:stop.y+.3);
@@ -463,6 +473,7 @@ function animate3D(now,dt){
   if(!glReady)return;
   advanceFlood(now);
   if(isFlat)return;
+  advanceReturn(dt);
   const steps=view==='walk'?Math.max(1,Math.ceil(dt/.04)):1;
   for(let i=0;i<steps;i++){if(view==='walk')updateImmersion();advance(dt/steps)}
   if(transition){

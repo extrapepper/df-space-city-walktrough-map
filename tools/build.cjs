@@ -73,6 +73,7 @@ const strappedCrateRole=firstSuite+suiteFaces.length;
 const palmRole=strappedCrateRole+1,palms=json('palms.json'),palmShapes=require('./palms.cjs');
 const dorm=json('dorm.json'),dormRoles=new Array(dorm.windows.length+1+dorm.rooms.length+2).fill(0);
 const doorRole=palmRole+dormRoles.length;
+const launchFaces=require('./launch.cjs').groups.map(()=>0);
 assert.deepEqual(dorm.rooms.map(r=>r.id),[7159,7160,7161]);
 assert.deepEqual(dorm.doors.map(d=>d.id),[7110,7088,7091]);
 assert.deepEqual([865,866,867].map(h=>dorm.windows.filter(w=>w.hull===h).length),[5,5,3]);
@@ -111,6 +112,7 @@ assert.equal(1+((stepSize>>>14)&16383),96);
 let labServerFaces=0,palmFaces=0;
 for(const cell of Object.values(appearances)){
   for(const [,count,role] of cell.near||[]){
+    if(role>doorRole){launchFaces[role-doorRole-1]+=count;continue}
     if(role>palmRole){dormRoles[role-palmRole-1]+=count;continue}
     if(role===palmRole){palmFaces+=count;continue}
     if(role===strappedCrateRole)continue;
@@ -132,6 +134,13 @@ assert.deepEqual(commandFaces,[494,6*56,122]);
 assert.equal(labServerFaces,106+156);
 assert.equal(palmFaces,palmShapes.counts.reduce((sum,n,i)=>sum+n*palmShapes.faces[i],0));
 assert.deepEqual(dormRoles,[...dorm.windows.map(w=>({865:48,866:24,867:12})[w.hull]),9*88,210,210,210,3*(40+400),3*3*12]);
+assert.deepEqual(launchFaces,[1435,1696,1334,4*1050,2856,1428]);
+const recovery=json('launch-return.json'),{profile,offsets,pose}=recovery;
+assert.equal(offsets.length,61);assert(offsets.every((v,i)=>Number.isFinite(v)&&(!i||v<=offsets[i-1])));
+assert(Math.abs(offsets[recovery.referenceFrame])<.001&&Math.abs(offsets.at(-1)+profile[0][0]+6.48)<.02);
+assert(profile.every(([y,r],i)=>Number.isFinite(y)&&r>0&&r<4.2&&(!i||y>profile[i-1][0])));
+assert.equal(pose.width,720);assert.equal(pose.height,405);assert(pose.eye.length===3&&pose.focal>0);
+for(const file of ['launch-ring.webp','launch-deck.webp','launch-arm.webp','launch-vehicle.webp','launch-return.webp'])assert.equal(read('data/'+file).subarray(8,12).toString(),'WEBP');
 assert.deepEqual(suiteFaces,[3047,4*509+2*383,2*364,2*178,2152+2510]);
 cabinetFaces.forEach((n,i)=>assert.equal(n,227,'Vending machine '+cabinets[i].instance));
 const knownCells = new Set(cells.map(cell => cell.file));
@@ -177,7 +186,7 @@ function meshEnd(bytes, offset, runs = [],paint,near=false) {
   for (const [face, count, role] of runs) {
     assert(Number.isInteger(face) && Number.isInteger(count) && count > 0 && face >= last);
     last = face + count;
-    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=doorRole, 'Invalid triangle material range');
+    assert(last <= indices / 3 && Number.isInteger(role) && role>=1 && role<=doorRole+launchFaces.length, 'Invalid triangle material range');
     if(role===freightRole||role===officeRole||role===serverRole||role===strappedCrateRole){
       assert(styles);
       for(let f=face;f<last;f++){

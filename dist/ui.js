@@ -57,6 +57,12 @@ $('reference-photo').onclick=()=>{
   if(!key)return;
   const label=chosen.landings[Number($('landing').value)]?.label;
   const dormRoom=chosen.landings[Number($('landing').value)]?.dormRoom;
+  if(chosen.landings[Number($('landing').value)]?.launchReturn){
+    setDialog('2024 · 火箭回收','<img class="reference" src="data/launch-return.webp" alt="从栈桥望向回收塔，火箭正在两道横臂之间下降"><p>从栈桥看，火箭在圆形承座上方下降，两侧横臂固定在塔身。下方的方形撤离平台有独立的双段楼梯。<a href="https://www.taptap.cn/moment/560580545478659238" target="_blank" rel="noreferrer">官方航天基地介绍</a></p>');
+    const go=document.createElement('button');go.className='visit-photo';go.textContent='从栈桥视角自由飞行';
+    go.onclick=async()=>{await launchLoading;if(!returnStudy){note('回收场景尚未载入');return}$('dialog').close();visitSurvey(returnStudy.pose)};$('dialog-body').append(go);
+    return;
+  }
   if(dormRoom){
     setDialog(label+' · 游戏画面','<img class="reference" src="data/dorm-bedroom.webp" alt="窗边床铺和壁柜写字台的官方游戏画面"><p>2024 年官方攻略展示了窗边的床、书桌和壁柜。卧室按模型中的窗帘、窗槛和墙角校准。照片未注明楼栋，三处同型卧室共用按图估算的家具。<a href="https://www.taptap.cn/moment/564129131101424794" target="_blank" rel="noreferrer">官方地图攻略</a></p>');
     const pose=dormViews.get(dormRoom);
@@ -100,7 +106,7 @@ function describeLanding(){
 $('landing').onchange=describeLanding;
 function selectPlace(item) {
   if(!ready)return;
-  cancelArrival();chosen=item;setOfficeGlobe(false);
+  cancelArrival();chosen=item;setOfficeGlobe(false);setLaunchReturn(false);
   $('show-room-views').hidden=!['离心机室','浮力室','蓝室','黑室','总裁室'].includes(item.name);
   $('reference-photo').hidden=!photos[item.name];
   $('landing').replaceChildren(...item.landings.map((spot,index)=>new Option((spot.label?spot.label+' · ':'高度 ')+spot.y.toFixed(1)+' m',String(index))));
@@ -110,7 +116,7 @@ function selectPlace(item) {
   points.forEach(p=>p.pin.classList.toggle('active',p===item));filterPlaces();
   if(isFlat)flatFocus(item);else focusPoint(item);syncMode();dirty=true;
 }
-function clearPlace(){cancelArrival();chosen=null;dirty=true;$('selection').hidden=true;points.forEach(p=>p.pin.classList.remove('active'));filterPlaces();syncMode();drawFlat()}
+function clearPlace(){cancelArrival();setLaunchReturn(false);chosen=null;dirty=true;$('selection').hidden=true;points.forEach(p=>p.pin.classList.remove('active'));filterPlaces();syncMode();drawFlat()}
 $('deselect').onclick=clearPlace;
 
 let roomViewIndex;

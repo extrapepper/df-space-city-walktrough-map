@@ -397,6 +397,33 @@ for(const r of ladders){
 }
 const ladderFile=path.join(folder,'ladders.json');
 const extraction=JSON.parse(fs.readFileSync(path.join(folder,'extraction.json'),'utf8'));
+function verifyLaunchWalk(stops){
+  const assert=require('node:assert/strict'),{walk,world}=require('./launch.cjs');
+  const start=stops['发射区'].find(s=>s.label==='撤离平台双段梯 · 梯脚');
+  const middle=stops['发射区'].find(s=>s.label==='撤离平台双段梯 · 中间平台');
+  const deck=stops['发射区'].find(s=>s.label==='火箭撤离平台');
+  assert(start&&middle&&deck);
+  let previous=start.y;const heights=[previous];
+  for(let j=1;j<walk.length;j++){
+    const [u0,f0]=walk[j-1],[u1,f1]=walk[j],a=world(u0,f0),b=world(u1,f1);
+    const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz),count=Math.ceil(length/.16);
+    for(let i=1;i<=count;i++){
+      const x=a.x+dx*i/count,z=a.z+dz*i/count;
+      const floor=rays(tiles,new THREE.Vector3(x,previous+.49,z),down,1.35)[0];
+      assert(floor&&Math.abs(floor.face.normal.y)>.70,'Missing tread on launch stair '+j+'/'+i);
+      const y=floor.point.y;assert(y-previous<.48&&y-previous>-.73);
+      for(const side of [-.19,0,.19]){
+        const shoulder=new THREE.Vector3(x+side*dz/length,y+.47,z-side*dx/length);
+        assert.equal(rays(tiles,shoulder,up,1.41).length,0,'Low clearance on launch stair '+j+'/'+i);
+      }
+      previous=y;
+    }
+    heights.push(previous);
+  }
+  assert(Math.abs(start.y+25.167)<.012&&Math.abs(heights[1]-middle.y)<.015);
+  assert(Math.abs(heights[3]+17.002)<.02&&Math.abs(previous-deck.y)<.01);
+  const end=world(...walk.at(-1));assert(Math.hypot(end.x-deck.x,end.z-deck.z)<.12);
+}
 function extractionStop(site){
   const {label,probeY}=site.landing;
   if(!site.panel)return viewStop({...site.landing,x:(site.mapX-668650)/100,z:(site.mapY+452830)/100});
@@ -429,6 +456,8 @@ if(process.argv.includes('--check-ladders')){
   const stops=JSON.parse(fs.readFileSync(path.join(folder,'landings.json')));
   verifyPalmWalks(stops);
   console.log('Verified original dorm and B1 trunks, four forecourt tree bases and the central stairway.');
+  verifyLaunchWalk(stops);
+  console.log('Verified both launch stair flights, headroom and the marked extraction deck.');
   verifyDorm(stops);
   require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync(path.join(folder,'dorm-plan.json'))),require('./dorm-plan.cjs').sampleApartment(tiles,rays,THREE));
   console.log('Verified three apartment balconies, their native handrails, sliding doors and five walking starts.');
@@ -474,6 +503,13 @@ const out={};for(const r of regions){
       yaw:yaw+Math.PI,pitch:-.48,...(route.headroom?{crouch:true}:{}),
       ...(name==='西侧层间梯'?{detail:'从梯口向南约 11 米，右边的门通往四楼连廊。进门后右转向北，沿玻璃窗走到尽头，再左转进入总裁室会客厅。'}:{}),
       ...(name==='东侧层间梯'?{detail:'从梯口向北约 11 米，右边的门通往四楼连廊。进门后右转向南，沿玻璃窗走到尽头，再左转进入总裁室会客厅。'}:{})});
+  }
+  if(r.name==='发射区'){
+    const {world,walk}=require('./launch.cjs');
+    out[r.name].unshift(
+      interiorStop({label:'撤离平台双段梯 · 梯脚',...world(...walk[0]),probeY:-24.5,yaw:3*Math.PI/4,pitch:.09,detail:'沿正前方上第一段楼梯，到中间平台向左横移，再沿同一方向上第二段。到顶左转进入蓝白色的撤离平台。'}),
+      interiorStop({label:'撤离平台双段梯 · 中间平台',...world(...walk[2]),probeY:-20.65,yaw:3*Math.PI/4,pitch:.12,detail:'面前是第二段楼梯。走到上层后左转，进入方形平台。'}),
+      {...interiorStop({label:'2024 · 火箭回收',...world(-33.34,-18.98),probeY:-17.1,yaw:1.30,pitch:.74,detail:'从方形撤离平台看向圆形承座。火箭沿塔身下降，选择这个起点可重新观看。回收末段被烟尘遮挡，停靠高度按承座口估算。'}),launchReturn:true});
   }
   if(r.name==='码头区')out[r.name].push(viewStop({label:'南侧平台售货机',x:-48.655,z:140.532,probeY:-31.86,yaw:-.6285,pitch:-.1151}));
   if(r.name==='黑室')out[r.name].push(viewStop({label:'器材架旁售货机',x:54.770,z:22.709,probeY:-27.65,yaw:1.986,pitch:-.12}));
